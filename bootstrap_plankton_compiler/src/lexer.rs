@@ -4,6 +4,7 @@ use crate::{
     PlanktonError, Span,
 };
 
+// TODO: This should probably return the whole PlanktonError vector
 pub fn tokenize(file: &str, id: FileId) -> Result<Vec<Token>, PlanktonError> {
     let mut lexer = Lexer::new(file, id);
     let res = lexer.tokenize();
