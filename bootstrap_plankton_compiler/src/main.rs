@@ -2,7 +2,7 @@ use std::{fs};
 
 use bootstrap_plankton_compiler::{
     compiler::{Compiler, CompilerArgs, CompilerTarget},
-    PlanktonError,
+    PlanktonError, Span,
 };
 use log::{error, info};
 
@@ -86,6 +86,7 @@ fn load_files(sources: &[&str]) -> Result<Vec<String>, PlanktonError> {
 fn report_error(err: PlanktonError) {
     match err {
         PlanktonError::IOError(err) => report_io_error(err),
+        PlanktonError::LexerError { message, span } => report_error_at_span(message, span),
     }
 }
 
@@ -97,4 +98,9 @@ fn report_io_error(err: std::io::Error) {
 // TODO: Use a better method of reporting errors.
 fn report_string_error(err: String) {
     error!("{}", err);
+}
+
+// TODO: Properly implement this
+fn report_error_at_span(message: String, span: Span) {
+    panic!("{} {:?}", message, span);
 }

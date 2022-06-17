@@ -11,6 +11,12 @@ pub struct Span {
     pub end: usize,
 }
 
+impl Span {
+    pub fn new(file: FileId, start: usize, end: usize) -> Self {
+        Self { file, start, end }
+    }
+}
+
 pub struct Compiler {
     sources: Vec<String>
 }
