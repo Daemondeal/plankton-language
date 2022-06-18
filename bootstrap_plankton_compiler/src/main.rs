@@ -1,7 +1,7 @@
 use std::{fs};
 
 use bootstrap_plankton_compiler::{
-    compiler::{Compiler, CompilerArgs, CompilerTarget},
+    compiler::{Compiler, CompilerArgs, CompilerTarget, Source},
     PlanktonError, Span,
 };
 use log::{error, info};
@@ -56,10 +56,10 @@ fn main() {
                     let res = compiler.compile_target(args.target);
                     match res {
                         Ok(result) => write_result(args, result),
-                        Err(e) => report_error(e),
+                        Err(e) => report_error(e, &compiler),
                     }
                 }
-                Err(e) => report_error(e),
+                Err(e) => report_io_error(e),
             }
         }
         Err(str) => report_string_error(format!("{}", str)),
@@ -70,23 +70,25 @@ fn write_result(_args: Args, result: String) {
     info!(target: "main", "Finished compiling! Result: {}", result);
 }
 
-fn load_files(sources: &[&str]) -> Result<Vec<String>, PlanktonError> {
-    // FIXME: There must be a better way
-    let res = sources
-        .iter()
-        .map(fs::read_to_string)
-        .collect::<Result<Vec<_>, std::io::Error>>();
+fn load_files(source_paths: &[&str]) -> Result<Vec<Source>, std::io::Error> {
+    let mut sources = vec![];
 
-    match res {
-        Ok(strings) => Ok(strings),
-        Err(err) => Err(err.into()) 
-    }
+    for path in source_paths {
+        let content = fs::read_to_string(path);
+        match content {
+            Ok(str) => sources.push(Source::new(path.to_string(), str)),
+            Err(err) => return Err(err)
+        }
+    } 
+
+    Ok(sources)
 }
 
-fn report_error(err: PlanktonError) {
+fn report_error(err: PlanktonError, compiler: &Compiler) {
     match err {
         PlanktonError::IOError(err) => report_io_error(err),
-        PlanktonError::LexerError { message, span } => report_error_at_span(message, span),
+        PlanktonError::LexerError { message, span } => report_error_at_span(message, span, compiler),
+        PlanktonError::ParserError { message, span } => report_error_at_span(message, span, compiler),
     }
 }
 
@@ -100,7 +102,50 @@ fn report_string_error(err: String) {
     error!("{}", err);
 }
 
-// TODO: Properly implement this
-fn report_error_at_span(message: String, span: Span) {
-    panic!("{} {:?}", message, span);
+fn report_error_at_span(message: String, span: Span, compiler: &Compiler) {
+    let source = compiler.get_source(span.file).unwrap().clone();
+
+    report_message_at_span_pretty(&message, MessageType::Error, span, source)
+}
+
+pub enum MessageType {
+    Error
+}
+
+impl MessageType {
+    pub fn name(&self) -> &'static str {
+        match self {
+            MessageType::Error => "error"
+        }
+    } 
+}
+
+fn report_message_at_span_pretty(
+    message: &str,
+    message_type: MessageType,
+    span: Span,
+    source: Source
+) {
+    
+    // TODO: Support more message types
+    let _ = message_type;
+    error!(target: &source.name, "{}", message);
+    
+    
+    let mut current_position = 0;
+
+    for line in source.content.lines() {
+        if current_position + line.chars().count() > span.start {
+            println!("{}", line);
+
+            print!("{}", " ".repeat(span.start - current_position));
+            println!("{}", "^".repeat(span.end - span.start));
+
+            break;
+        } else {
+            println!("Cur_Pos: {}; Start: {}", current_position, span.start);
+            println!("Before line: {}", line);
+            current_position += line.chars().count();
+        }
+    }
 }

@@ -1,5 +1,7 @@
 proc main() {
     let x: i32 = 1
     let y: f32 = 32.12
+    let z = 1 == 3
+
     let z: str = "Hello World!"
 }

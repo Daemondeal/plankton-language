@@ -1,12 +1,12 @@
 use crate::Span;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
     pub span: Span,
     pub token_type: TokenType,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TokenType {
     LeftParen, RightParen, Comma, Dot, DotDot, 
     Minus, Plus, Slash, Star, Colon, Arrow, Ampersand,

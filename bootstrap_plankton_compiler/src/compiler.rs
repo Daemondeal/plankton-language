@@ -17,12 +17,24 @@ impl Span {
     }
 }
 
+#[derive(Clone)]
+pub struct Source {
+    pub name: String,
+    pub content: String,
+}
+
+impl Source {
+    pub fn new(name: String, content: String) -> Self {
+        Self { name, content }
+    }
+}
+
 pub struct Compiler {
-    sources: Vec<String>
+    sources: Vec<Source>
 }
 
 pub struct CompilerArgs {
-    pub input_sources: Vec<String>,
+    pub input_sources: Vec<Source>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -35,22 +47,35 @@ impl Compiler {
         Self { sources: args.input_sources }
     }
 
+    pub fn get_source(&self, file: FileId) -> Option<&Source> {
+        if file < self.sources.len() {
+            Some(&self.sources[file])
+        } else {
+            None
+        }
+    }
+
     fn generate_checked_ast(&mut self) -> Result<CheckedAst, PlanktonError> {
         info!(target: "compiler", "Started lexing...");
         let lexed_sources = self
             .sources
             .iter()
             .enumerate()
-            .map(|(i, x)| tokenize(x, i as FileId))
+            .map(|(i, x)| tokenize(&x.content, i as FileId))
             .collect::<Result<Vec<_>, _>>()?;
 
         
         info!(target: "compiler", "Finished Lexing!");
         for (i, source) in lexed_sources.iter().enumerate() {
             println!("File {}:", i);
-            for token in source {
-                println!("{:?}", token);
-            }
+            // for token in source {
+            //     println!("{:?}", token);
+            // }
+            
+            let token = source[15].clone();
+            println!("Error Token = {:?}", token);
+
+            return Err(PlanktonError::ParserError { message: "Test".to_string(), span: token.span });
         }
 
         todo!()
