@@ -1,6 +1,6 @@
 use log::info;
 
-use crate::{PlanktonError, lexer::tokenize, checked_ast::CheckedAst, token::TokenType};
+use crate::{PlanktonError, lexer::tokenize, checked_ast::CheckedAst};
 
 pub type FileId = usize;
 
@@ -68,9 +68,10 @@ impl Compiler {
         info!(target: "compiler", "Finished Lexing!");
 
         for (i, source) in lexed_sources.iter().enumerate() {
-            println!("File {}:", i);
             for token in source {
-                println!("{:?}", token);
+                return Err(vec![
+                    PlanktonError::ParserError { message: "Test".to_string(), span: token.span }
+                ]);
             }
         }
 
