@@ -1,6 +1,6 @@
 use log::info;
 
-use crate::{PlanktonError, lexer::tokenize, checked_ast::CheckedAst};
+use crate::{PlanktonError, lexer::tokenize, checked_ast::CheckedAst, token::TokenType};
 
 pub type FileId = usize;
 
@@ -55,33 +55,29 @@ impl Compiler {
         }
     }
 
-    fn generate_checked_ast(&mut self) -> Result<CheckedAst, PlanktonError> {
+    fn generate_checked_ast(&mut self) -> Result<CheckedAst, Vec<PlanktonError>> {
         info!(target: "compiler", "Started lexing...");
         let lexed_sources = self
             .sources
             .iter()
             .enumerate()
             .map(|(i, x)| tokenize(&x.content, i as FileId))
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, Vec<_>>>()?;
 
         
         info!(target: "compiler", "Finished Lexing!");
+
         for (i, source) in lexed_sources.iter().enumerate() {
             println!("File {}:", i);
-            // for token in source {
-            //     println!("{:?}", token);
-            // }
-            
-            let token = source[15].clone();
-            println!("Error Token = {:?}", token);
-
-            return Err(PlanktonError::ParserError { message: "Test".to_string(), span: token.span });
+            for token in source {
+                println!("{:?}", token);
+            }
         }
 
         todo!()
     }
 
-    pub fn compile_target(&mut self, target: CompilerTarget) -> Result<String, PlanktonError> {
+    pub fn compile_target(&mut self, target: CompilerTarget) -> Result<String, Vec<PlanktonError>> {
         info!(target: "compiler", "Compiling for target {:?}...", target);
 
         let _checked_ast = self.generate_checked_ast()?;

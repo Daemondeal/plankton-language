@@ -6,7 +6,7 @@ pub struct Token {
     pub token_type: TokenType,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     LeftParen, RightParen, Comma, Dot, DotDot, 
     Minus, Plus, Slash, Star, Colon, Arrow, Ampersand,

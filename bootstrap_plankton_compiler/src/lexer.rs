@@ -4,21 +4,9 @@ use crate::{
     PlanktonError, Span,
 };
 
-// TODO: This should probably return the whole PlanktonError vector
-pub fn tokenize(file: &str, id: FileId) -> Result<Vec<Token>, PlanktonError> {
+pub fn tokenize(file: &str, id: FileId) -> Result<Vec<Token>, Vec<PlanktonError>> {
     let mut lexer = Lexer::new(file, id);
-    let res = lexer.tokenize();
-
-    match res {
-        Ok(result) => Ok(result),
-        Err(errors) => {
-            let err = errors
-                .into_iter()
-                .next()
-                .expect("Expecting at least one error.");
-            Err(err)
-        }
-    }
+    lexer.tokenize()
 }
 
 pub struct Lexer {
@@ -103,7 +91,7 @@ impl Lexer {
                 } else {
                     Err(PlanktonError::LexerError {
                         message: "Unexpected Character".to_owned(),
-                        span: Span::new(self.file, self.current, self.current + 1),
+                        span: self.get_span()
                     })
                 }
             }
@@ -158,7 +146,7 @@ impl Lexer {
 
             _ => Err(PlanktonError::LexerError {
                 message: "Unexpected Character".to_owned(),
-                span: Span::new(self.file, self.current, self.current + 1),
+                span: self.get_span() 
             }),
         }
     }
@@ -166,7 +154,7 @@ impl Lexer {
     fn make_token(&self, token_type: TokenType) -> Option<Token> {
         Some(Token {
             token_type,
-            span: Span::new(self.file, self.start, self.current),
+            span: self.get_span(),
         })
     }
 
@@ -207,7 +195,7 @@ impl Lexer {
         if self.is_at_end() {
             return Err(PlanktonError::LexerError {
                 message: "Unterminated string".to_string(),
-                span: Span::new(self.file, self.current, self.current + 1),
+                span: self.get_span() 
             });
         }
 
@@ -248,6 +236,10 @@ impl Lexer {
 
     fn is_at_end(&self) -> bool {
         self.current >= self.chars.len()
+    }
+
+    fn get_span(&self) -> Span {
+        Span::new(self.file, self.start, self.current)
     }
 
     fn advance(&mut self) -> char {

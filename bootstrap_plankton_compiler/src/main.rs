@@ -56,7 +56,7 @@ fn main() {
                     let res = compiler.compile_target(args.target);
                     match res {
                         Ok(result) => write_result(args, result),
-                        Err(e) => report_error(e, &compiler),
+                        Err(e) => report_all_errors(e, &compiler),
                     }
                 }
                 Err(e) => report_io_error(e),
@@ -82,6 +82,12 @@ fn load_files(source_paths: &[&str]) -> Result<Vec<Source>, std::io::Error> {
     } 
 
     Ok(sources)
+}
+
+fn report_all_errors(errs: Vec<PlanktonError>, compiler: &Compiler) {
+    for err in errs {
+        report_error(err, compiler);
+    }
 }
 
 fn report_error(err: PlanktonError, compiler: &Compiler) {
@@ -120,32 +126,49 @@ impl MessageType {
     } 
 }
 
+fn find_line_breakpoints(
+    chars: Vec<char>
+) -> Vec<usize> {
+    let mut res = vec![0];
+    let mut pos = 0;
+
+    for char in chars {
+        pos += 1;
+        if char == '\n' {
+            res.push(pos);
+        }
+    }
+
+    res
+}
+
 fn report_message_at_span_pretty(
     message: &str,
     message_type: MessageType,
     span: Span,
     source: Source
 ) {
-    
     // TODO: Support more message types
     let _ = message_type;
     error!(target: &source.name, "{}", message);
     
     
-    let mut current_position = 0;
+    let chars = source.content.chars().collect::<Vec<_>>();
+    let line_breakpoints = find_line_breakpoints(chars);
 
-    for line in source.content.lines() {
-        if current_position + line.chars().count() > span.start {
-            println!("{}", line);
 
-            print!("{}", " ".repeat(span.start - current_position));
+    for (i, breakpoint) in line_breakpoints.iter().enumerate().skip(1) {
+        if breakpoint > &span.start {
+            let last_pos = line_breakpoints[i - 1];
+            // That -1 is because we don't want to print the '\n'
+            let slice = &source.content[last_pos..*breakpoint - 1]; 
+
+            println!("{}", slice);
+
+            print!("{}", " ".repeat(span.start - last_pos));
             println!("{}", "^".repeat(span.end - span.start));
 
             break;
-        } else {
-            println!("Cur_Pos: {}; Start: {}", current_position, span.start);
-            println!("Before line: {}", line);
-            current_position += line.chars().count();
         }
     }
 }
