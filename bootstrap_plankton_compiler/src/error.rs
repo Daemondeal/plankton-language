@@ -1,5 +1,6 @@
 use crate::Span;
 
+#[derive(Debug)]
 pub enum PlanktonError {
     IOError(std::io::Error),
     LexerError { message: String, span: Span },
