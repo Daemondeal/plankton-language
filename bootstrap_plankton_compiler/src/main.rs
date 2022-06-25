@@ -1,11 +1,11 @@
-use std::{fs};
+use std::fs;
 
 use bootstrap_plankton_compiler::{
     compiler::{Compiler, CompilerArgs, CompilerTarget, Source},
     PlanktonError, Span,
 };
 use log::{error, info, LevelFilter};
-use simplelog::{TermLogger, Config, TerminalMode, ColorChoice};
+use simplelog::{ColorChoice, Config, TermLogger, TerminalMode};
 
 #[allow(dead_code)]
 struct Args {
@@ -27,18 +27,15 @@ fn parse_args() -> Result<Args, lexopt::Error> {
 
     while let Some(arg) = parser.next()? {
         match arg {
-            Short('o') | Long("output") => {
-                output_path = parser.value()?.into_string()?;
-            }
-            Value(path) if input_path.is_none() => {
-                input_path = Some(path.into_string()?);
-            }
-            Short('j') | Long("json") => {
-                json_errors = true;
-            }
-            Short('q') | Long("quiet") => {
-                verbosity = LevelFilter::Off;
-            }
+            Short('o') | Long("output") => output_path = parser.value()?.into_string()?,
+
+            Value(path) if input_path.is_none() => input_path = Some(path.into_string()?),
+
+            Short('j') | Long("json") => json_errors = true,
+
+            Short('q') | Long("quiet") => verbosity = LevelFilter::Off,
+            Long("trace") => verbosity = LevelFilter::Trace,
+
             _ => return Err(arg.unexpected()),
         }
     }
@@ -64,9 +61,10 @@ fn main() {
                 args.verbosity,
                 Config::default(),
                 TerminalMode::Mixed,
-                ColorChoice::Auto
-            ).unwrap();
-            
+                ColorChoice::Auto,
+            )
+            .unwrap();
+
             match sources_res {
                 Ok(sources) => {
                     let mut compiler = Compiler::new(CompilerArgs {
@@ -97,9 +95,9 @@ fn load_files(source_paths: &[&str]) -> Result<Vec<Source>, std::io::Error> {
         let content = fs::read_to_string(path);
         match content {
             Ok(str) => sources.push(Source::new(path.to_string(), str)),
-            Err(err) => return Err(err)
+            Err(err) => return Err(err),
         }
-    } 
+    }
 
     Ok(sources)
 }
@@ -111,9 +109,11 @@ fn report_all_errors(errs: Vec<PlanktonError>, compiler: &Compiler, json: bool) 
 
     for err in errs {
         report_error(err, compiler, json);
-        if json { println!(","); }
+        if json {
+            println!(",");
+        }
     }
-    
+
     if json {
         println!("]");
     }
@@ -122,8 +122,13 @@ fn report_all_errors(errs: Vec<PlanktonError>, compiler: &Compiler, json: bool) 
 fn report_error(err: PlanktonError, compiler: &Compiler, json: bool) {
     match err {
         PlanktonError::IOError(err) => report_io_error(err),
-        PlanktonError::LexerError { message, span } => report_error_at_span(message, span, compiler, json),
-        PlanktonError::ParserError { message, span } => report_error_at_span(message, span, compiler, json),
+        PlanktonError::LexerError { message, span } => {
+            report_error_at_span(message, span, compiler, json)
+        }
+        PlanktonError::ParserError { message, span } => {
+            report_error_at_span(message, span, compiler, json)
+        }
+        PlanktonError::ParserErrrorWithoutSpan(err) => report_string_error(err),
     }
 }
 
@@ -148,38 +153,28 @@ fn report_error_at_span(message: String, span: Span, compiler: &Compiler, json: 
 }
 
 pub enum MessageType {
-    Error
+    Error,
 }
 
 impl MessageType {
     pub fn name(&self) -> &'static str {
         match self {
-            MessageType::Error => "error"
+            MessageType::Error => "error",
         }
-    } 
+    }
 }
 
-fn report_error_at_span_json(
-    message: &str,
-    message_type: MessageType,
-    span: Span,
-    source: Source
-) {
+fn report_error_at_span_json(message: &str, message_type: MessageType, span: Span, source: Source) {
     // TODO: Allow more message types
     let _ = message_type;
 
     print!(
         "{{ \"error\": \"{}\", \"span\": {{\"start\": {}, \"end\": {}, \"file\": {}}} }}",
-        message,
-        span.start,
-        span.end,
-        source.name
+        message, span.start, span.end, source.name
     );
-} 
+}
 
-fn find_line_breakpoints(
-    chars: Vec<char>
-) -> Vec<usize> {
+fn find_line_breakpoints(chars: Vec<char>) -> Vec<usize> {
     let mut res = vec![0];
     let mut pos = 0;
 
@@ -197,26 +192,28 @@ fn report_message_at_span_pretty(
     message: &str,
     message_type: MessageType,
     span: Span,
-    source: Source
+    source: Source,
 ) {
     // TODO: Support more message types
     let _ = message_type;
     error!(target: &source.name, "{}: {}", &source.name, message);
-    
-    
+
     let chars = source.content.chars().collect::<Vec<_>>();
     let line_breakpoints = find_line_breakpoints(chars);
-
 
     for (i, breakpoint) in line_breakpoints.iter().enumerate().skip(1) {
         if breakpoint > &span.start {
             let last_pos = line_breakpoints[i - 1];
             // That -1 is because we don't want to print the '\n'
-            let slice = &source.content[last_pos..*breakpoint - 1]; 
+            let slice = &source.content[last_pos..*breakpoint - 1];
 
             error!("{}", slice);
 
-            error!("{}{}", " ".repeat(span.start - last_pos), "^".repeat(span.end - span.start));
+            error!(
+                "{}{}",
+                " ".repeat(span.start - last_pos),
+                "^".repeat(span.end - span.start)
+            );
 
             break;
         }

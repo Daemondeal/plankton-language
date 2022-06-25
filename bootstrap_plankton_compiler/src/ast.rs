@@ -1,4 +1,4 @@
-use crate::{Span, debug::ast_viewer::ast_to_sexpr};
+use crate::{debug::ast_viewer::ast_to_sexpr, Span};
 use std::fmt::Debug;
 
 pub struct Ast {
@@ -12,23 +12,34 @@ impl Debug for Ast {
 }
 
 pub enum LiteralKind {
-    String (String),
-    Integer32 (i32),
-    Float32 (f32),
-    Boolean (bool),
+    String(String),
+    Integer32(i32),
+    Float32(f32),
+    Boolean(bool),
 }
 
 #[derive(Debug)]
 pub enum Operator {
-    Sum, Subtract, Divide, Multiply,
-    LogicAnd, LogicOr, LogicNot,
+    Sum,
+    Subtract,
+    Divide,
+    Multiply,
+    LogicAnd,
+    LogicOr,
+    LogicNot,
     Negate,
-    Equals, NotEquals,
-    LessThan, LessThanEqual,
-    GreaterThan, GreaterThanEqual,
-    Assign, Get,
-    GetAddress, Dereference, IndexAccess,
-    ProcedureCall
+    Equals,
+    NotEquals,
+    LessThan,
+    LessThanEqual,
+    GreaterThan,
+    GreaterThanEqual,
+    Assign,
+    Get,
+    GetAddress,
+    Dereference,
+    IndexAccess,
+    ProcedureCall,
 }
 
 impl Operator {
@@ -58,19 +69,24 @@ impl Operator {
     }
 }
 
-
 pub enum ExprKind {
-    Operation (Operator, Vec<Expr>),
-    Grouping (Box<Expr>),
-    Variable (String),
-    Literal (LiteralKind),
+    Operation(Operator, Vec<Expr>),
+    Grouping(Box<Expr>),
+    Variable(String),
+    Literal(LiteralKind),
     If(Box<Expr>, Box<Stmt>, Option<Box<Stmt>>),
-    While(Box<Expr>, Box<Stmt>)
+    While(Box<Expr>, Box<Stmt>),
 }
 
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
+}
+
+impl Expr {
+    pub fn new(kind: ExprKind, span: Span) -> Self {
+        Self { kind, span }
+    }
 }
 
 pub enum TypeExprKind {
@@ -86,10 +102,16 @@ pub enum StmtKind {
     Declaration(String, Option<TypeExpr>, Option<Expr>),
     Expression(Expr),
     Return(Expr),
-    Block(Vec<Stmt>)
+    Block(Vec<Stmt>),
 }
 
 pub struct Stmt {
     pub kind: StmtKind,
     pub span: Span,
+}
+
+impl Stmt {
+    pub fn new(kind: StmtKind, span: Span) -> Self {
+        Self { kind, span }
+    }
 }

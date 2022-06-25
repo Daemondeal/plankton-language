@@ -1,6 +1,6 @@
 use crate::{
     compiler::FileId,
-    token::{Token, TokenType},
+    token::{Token, TokenKind},
     PlanktonError, Span,
 };
 
@@ -52,8 +52,11 @@ impl Lexer {
             return Err(errors);
         }
 
+        // FIXME: This is a hack, the parser shouldn't need a LineEnd even in the end
+        tokens.push(self.make_token(TokenKind::LineEnd).unwrap());
+
         tokens.push(Token {
-            token_type: TokenType::Eof,
+            kind: TokenKind::Eof,
             span: Span::new(self.file, self.current, self.current),
         });
 
@@ -64,63 +67,63 @@ impl Lexer {
         let c = self.advance();
 
         match c {
-            '(' => Ok(self.make_token(TokenType::LeftParen)),
-            ')' => Ok(self.make_token(TokenType::RightParen)),
-            ',' => Ok(self.make_token(TokenType::Comma)),
-            '+' => Ok(self.make_token(TokenType::Plus)),
-            '*' => Ok(self.make_token(TokenType::Star)),
-            '/' => Ok(self.make_token(TokenType::Slash)),
-            ':' => Ok(self.make_token(TokenType::Colon)),
-            '{' => Ok(self.make_token(TokenType::LeftBrace)),
-            '}' => Ok(self.make_token(TokenType::RightBrace)),
-            '[' => Ok(self.make_token(TokenType::LeftBracket)),
-            ']' => Ok(self.make_token(TokenType::RightBracket)),
-            '&' => Ok(self.make_token(TokenType::Ampersand)),
+            '(' => Ok(self.make_token(TokenKind::LeftParen)),
+            ')' => Ok(self.make_token(TokenKind::RightParen)),
+            ',' => Ok(self.make_token(TokenKind::Comma)),
+            '+' => Ok(self.make_token(TokenKind::Plus)),
+            '*' => Ok(self.make_token(TokenKind::Star)),
+            '/' => Ok(self.make_token(TokenKind::Slash)),
+            ':' => Ok(self.make_token(TokenKind::Colon)),
+            '{' => Ok(self.make_token(TokenKind::LeftBrace)),
+            '}' => Ok(self.make_token(TokenKind::RightBrace)),
+            '[' => Ok(self.make_token(TokenKind::LeftBracket)),
+            ']' => Ok(self.make_token(TokenKind::RightBracket)),
+            '&' => Ok(self.make_token(TokenKind::Ampersand)),
 
             '-' => {
                 if self.match_char('>') {
-                    Ok(self.make_token(TokenType::Arrow))
+                    Ok(self.make_token(TokenKind::Arrow))
                 } else {
-                    Ok(self.make_token(TokenType::Minus))
+                    Ok(self.make_token(TokenKind::Minus))
                 }
             }
 
             '!' => {
                 if self.match_char('=') {
-                    Ok(self.make_token(TokenType::BangEqual))
+                    Ok(self.make_token(TokenKind::BangEqual))
                 } else {
                     Err(PlanktonError::LexerError {
                         message: "Unexpected Character".to_owned(),
-                        span: self.get_span()
+                        span: self.get_span(),
                     })
                 }
             }
             '=' => {
                 if self.match_char('=') {
-                    Ok(self.make_token(TokenType::EqualEqual))
+                    Ok(self.make_token(TokenKind::EqualEqual))
                 } else {
-                    Ok(self.make_token(TokenType::Equal))
+                    Ok(self.make_token(TokenKind::Equal))
                 }
             }
             '<' => {
                 if self.match_char('=') {
-                    Ok(self.make_token(TokenType::LessEqual))
+                    Ok(self.make_token(TokenKind::LessEqual))
                 } else {
-                    Ok(self.make_token(TokenType::Less))
+                    Ok(self.make_token(TokenKind::Less))
                 }
             }
             '>' => {
                 if self.match_char('=') {
-                    Ok(self.make_token(TokenType::GreaterEqual))
+                    Ok(self.make_token(TokenKind::GreaterEqual))
                 } else {
-                    Ok(self.make_token(TokenType::Greater))
+                    Ok(self.make_token(TokenKind::Greater))
                 }
             }
             '.' => {
                 if self.match_char('.') {
-                    Ok(self.make_token(TokenType::DotDot))
+                    Ok(self.make_token(TokenKind::DotDot))
                 } else {
-                    Ok(self.make_token(TokenType::Dot))
+                    Ok(self.make_token(TokenKind::Dot))
                 }
             }
 
@@ -136,7 +139,7 @@ impl Lexer {
 
             '\n' => {
                 self.line += 1;
-                Ok(self.make_token(TokenType::LineEnd))
+                Ok(self.make_token(TokenKind::LineEnd))
             }
 
             '"' => self.make_string(),
@@ -146,14 +149,14 @@ impl Lexer {
 
             _ => Err(PlanktonError::LexerError {
                 message: "Unexpected Character".to_owned(),
-                span: self.get_span() 
+                span: self.get_span(),
             }),
         }
     }
 
-    fn make_token(&self, token_type: TokenType) -> Option<Token> {
+    fn make_token(&self, token_type: TokenKind) -> Option<Token> {
         Some(Token {
-            token_type,
+            kind: token_type,
             span: self.get_span(),
         })
     }
@@ -178,9 +181,9 @@ impl Lexer {
         // FIXME: Unwrapping here should be fine, but I should probably still properly handle the error.
         let num_text = &self.code[self.start..self.current];
         if is_integer {
-            self.make_token(TokenType::Integer32(num_text.parse::<i32>().unwrap()))
+            self.make_token(TokenKind::Integer32(num_text.parse::<i32>().unwrap()))
         } else {
-            self.make_token(TokenType::Float32(num_text.parse::<f32>().unwrap()))
+            self.make_token(TokenKind::Float32(num_text.parse::<f32>().unwrap()))
         }
     }
 
@@ -195,14 +198,14 @@ impl Lexer {
         if self.is_at_end() {
             return Err(PlanktonError::LexerError {
                 message: "Unterminated string".to_string(),
-                span: self.get_span() 
+                span: self.get_span(),
             });
         }
 
         // Consumes the closing '"'
         self.advance();
 
-        Ok(self.make_token(TokenType::String(
+        Ok(self.make_token(TokenKind::String(
             self.code[self.start + 1..self.current - 1].to_string(),
         )))
     }
@@ -215,20 +218,20 @@ impl Lexer {
         let text = &self.code[self.start..self.current];
 
         let token_type = match text {
-            "not" => TokenType::Not,
-            "and" => TokenType::And,
-            "or" => TokenType::Or,
-            "if" => TokenType::If,
-            "else" => TokenType::Else,
-            "while" => TokenType::While,
-            "for" => TokenType::For,
-            "in" => TokenType::In,
-            "proc" => TokenType::Proc,
-            "return" => TokenType::Return,
-            "true" => TokenType::True,
-            "false" => TokenType::False,
-            "let" => TokenType::Let,
-            _ => TokenType::Identifier(text.to_string()),
+            "not" => TokenKind::Not,
+            "and" => TokenKind::And,
+            "or" => TokenKind::Or,
+            "if" => TokenKind::If,
+            "else" => TokenKind::Else,
+            "while" => TokenKind::While,
+            "for" => TokenKind::For,
+            "in" => TokenKind::In,
+            "proc" => TokenKind::Proc,
+            "return" => TokenKind::Return,
+            "true" => TokenKind::True,
+            "false" => TokenKind::False,
+            "let" => TokenKind::Let,
+            _ => TokenKind::Identifier(text.to_string()),
         };
 
         self.make_token(token_type)

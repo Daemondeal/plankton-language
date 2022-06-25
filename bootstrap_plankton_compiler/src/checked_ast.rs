@@ -1,4 +1,2 @@
 // TODO
-pub struct CheckedAst {
-
-}
+pub struct CheckedAst {}

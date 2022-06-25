@@ -1,4 +1,4 @@
-use crate::ast::{Ast, Stmt, StmtKind, TypeExpr, TypeExprKind, Expr, ExprKind, LiteralKind};
+use crate::ast::{Ast, Expr, ExprKind, LiteralKind, Stmt, StmtKind, TypeExpr, TypeExprKind};
 
 pub fn ast_to_sexpr(ast: &Ast) -> String {
     let mut res = "".to_string();
@@ -13,7 +13,7 @@ pub fn ast_to_sexpr(ast: &Ast) -> String {
 
 fn convert_type_expr(typ_expr: &TypeExpr) -> String {
     match &typ_expr.kind {
-        TypeExprKind::Builtin(name) => name.clone()
+        TypeExprKind::Builtin(name) => name.clone(),
     }
 }
 
@@ -38,18 +38,18 @@ fn convert_stmt(stmt: &Stmt, indent: usize) -> String {
             res.push(')');
 
             res
-        },
+        }
         StmtKind::Expression(expr) => format!("({})", convert_expr(expr, indent)),
         StmtKind::Return(expr) => format!("(return {})", convert_expr(expr, indent)),
         StmtKind::Block(statements) => {
             let mut res = "(block\n".to_string();
 
-            for statement in statements { 
+            for statement in statements {
                 add_indent(indent + 1, &mut res);
                 res.push_str(&convert_stmt(statement, indent + 1));
                 res.push('\n');
             }
-            
+
             add_indent(indent, &mut res);
             res.push(')');
             res
@@ -70,27 +70,25 @@ fn convert_expr(expr: &Expr, indent: usize) -> String {
             res.push(')');
 
             res
-        },
+        }
         ExprKind::Grouping(expr) => convert_expr(expr, indent),
         ExprKind::Variable(name) => name.clone(),
         ExprKind::Literal(kind) => convert_literal(kind),
-        ExprKind::If(check, then_body, else_body_opt) =>
-            format!(
-                "(if {} ({}){})",
-                convert_expr(check, indent),
-                convert_stmt(then_body, indent),
-                if let Some(else_body) = else_body_opt {
-                    format!(" ({})", convert_stmt(else_body, indent))
-                } else {
-                    "".to_string()
-                }
-            ),
-        ExprKind::While(check, body) => 
-            format!(
-                "(while {} {})",
-                convert_expr(check, indent),
-                convert_stmt(body, indent)
-            ),
+        ExprKind::If(check, then_body, else_body_opt) => format!(
+            "(if {} ({}){})",
+            convert_expr(check, indent),
+            convert_stmt(then_body, indent),
+            if let Some(else_body) = else_body_opt {
+                format!(" ({})", convert_stmt(else_body, indent))
+            } else {
+                "".to_string()
+            }
+        ),
+        ExprKind::While(check, body) => format!(
+            "(while {} {})",
+            convert_expr(check, indent),
+            convert_stmt(body, indent)
+        ),
     }
 }
 

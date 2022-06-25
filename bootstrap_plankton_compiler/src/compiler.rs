@@ -1,6 +1,6 @@
 use log::info;
 
-use crate::{PlanktonError, lexer::tokenize, checked_ast::CheckedAst, parser::parse_tokens};
+use crate::{checked_ast::CheckedAst, lexer::tokenize, parser::parse_tokens, PlanktonError};
 
 pub type FileId = usize;
 
@@ -30,7 +30,7 @@ impl Source {
 }
 
 pub struct Compiler {
-    sources: Vec<Source>
+    sources: Vec<Source>,
 }
 
 pub struct CompilerArgs {
@@ -44,7 +44,9 @@ pub enum CompilerTarget {
 
 impl Compiler {
     pub fn new(args: CompilerArgs) -> Self {
-        Self { sources: args.input_sources }
+        Self {
+            sources: args.input_sources,
+        }
     }
 
     pub fn get_source(&self, file: FileId) -> Option<&Source> {
@@ -63,12 +65,11 @@ impl Compiler {
             .enumerate()
             .map(|(i, x)| tokenize(&x.content, i as FileId))
             .collect::<Result<Vec<_>, Vec<_>>>()?;
-
-        
         info!(target: "compiler", "Finished Lexing!");
 
         info!(target: "compiler", "Started Parsing...");
-        let asts = lexed_sources.into_iter()
+        let asts = lexed_sources
+            .into_iter()
             .enumerate()
             .map(|(i, source)| parse_tokens(source, i))
             .collect::<Result<Vec<_>, Vec<_>>>()?;
@@ -87,9 +88,6 @@ impl Compiler {
         info!(target: "compiler", "Compiling for target {:?}...", target);
 
         let _checked_ast = self.generate_checked_ast()?;
-        
-        
-            
 
         todo!()
     }
