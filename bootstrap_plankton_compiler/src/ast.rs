@@ -76,6 +76,7 @@ pub enum ExprKind {
     Literal(LiteralKind),
     If(Box<Expr>, Box<Stmt>, Option<Box<Stmt>>),
     While(Box<Expr>, Box<Stmt>),
+    Procedure(Vec<(String, TypeExpr)>, TypeExpr, Box<Stmt>)
 }
 
 pub struct Expr {
@@ -89,13 +90,26 @@ impl Expr {
     }
 }
 
+#[derive(Clone)]
 pub enum TypeExprKind {
     Builtin(String), // TODO: Change this
+    Void,
+    Procedure {
+        return_type: Box<TypeExpr>,
+        arguments: Vec<TypeExpr>
+    }
 }
 
+#[derive(Clone)]
 pub struct TypeExpr {
     pub kind: TypeExprKind,
     pub span: Span,
+}
+
+impl TypeExpr {
+    pub fn void(span: Span) -> Self {
+        Self { span, kind: TypeExprKind::Void }
+    }
 }
 
 pub enum StmtKind {

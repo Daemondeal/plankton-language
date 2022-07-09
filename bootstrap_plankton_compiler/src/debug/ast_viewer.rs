@@ -14,6 +14,26 @@ pub fn ast_to_sexpr(ast: &Ast) -> String {
 fn convert_type_expr(typ_expr: &TypeExpr) -> String {
     match &typ_expr.kind {
         TypeExprKind::Builtin(name) => name.clone(),
+        TypeExprKind::Void => "void".to_string(),
+        TypeExprKind::Procedure {
+            return_type,
+            arguments,
+        } => {
+            let mut res = "(".to_string();
+
+            // TODO: Fix this
+            for (i, arg) in arguments.iter().enumerate() {
+                
+                res.push_str(&format!("{}", convert_type_expr(arg)));
+                if i < arguments.len() - 1 {
+                    res.push(' ');
+                }
+            }
+
+            res.push_str(&format!(") -> {}", convert_type_expr(return_type)));
+
+            res
+        }
     }
 }
 
@@ -28,6 +48,7 @@ fn convert_stmt(stmt: &Stmt, indent: usize) -> String {
         StmtKind::Declaration(name, type_expr, expr) => {
             let mut res = format!("(let {}", name);
             if let Some(typ) = type_expr {
+                res.push_str(": ");
                 res.push_str(&convert_type_expr(typ));
             }
 
@@ -89,6 +110,20 @@ fn convert_expr(expr: &Expr, indent: usize) -> String {
             convert_expr(check, indent),
             convert_stmt(body, indent)
         ),
+        ExprKind::Procedure(arguments, return_type, body) => {
+            let mut res = "(proc ".to_string();
+
+            for (arg, _) in arguments {
+                res.push_str(&format!("{} ", arg));
+            }
+
+            res.push_str(&format!(
+                "{})",
+                convert_stmt(body, indent)
+            ));
+
+            res
+        }
     }
 }
 

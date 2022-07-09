@@ -1,1 +1,3 @@
-let x = 1 + 2 * 3 - banana()[5] + if x == 5 { 3 } else { 4 }
+proc main(a: int, b: str) {
+    print("Hi")
+}

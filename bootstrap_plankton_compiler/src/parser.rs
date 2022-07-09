@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Ast, Expr, ExprKind, LiteralKind, Operator, Stmt, StmtKind, TypeExpr},
+    ast::{Ast, Expr, ExprKind, LiteralKind, Operator, Stmt, StmtKind, TypeExpr, TypeExprKind},
     compiler::FileId,
     token::{Token, TokenKind},
     PlanktonError, Span,
@@ -193,9 +193,70 @@ impl Parser {
             self.statement_let_declaration()
         } else if self.match_token(&TokenKind::Return) {
             self.statement_return()
+        } else if self.match_token(&TokenKind::Proc) {
+            self.statement_procedure()
         } else {
             self.statement_expression()
         }
+    }
+
+    fn get_last_span(&self) -> Span {
+        self.tokens[self.current - 1].span
+    }
+
+    fn consume_identifier(&mut self) -> Result<String, Vec<PlanktonError>> {
+        let identifier = self.consume_or_unexpected(&TokenKind::Identifier("".to_string()))?;
+
+        // FIXME: this is horrible, find a better way
+        match &identifier.kind {
+            TokenKind::Identifier(val) => Ok(val.clone()),
+            _ => unreachable!(),
+        }
+    }
+
+    fn statement_procedure(&mut self) -> Result<Stmt, Vec<PlanktonError>> {
+        let proc_name = self.consume_identifier()?;
+        let span = self.get_last_span();
+
+        self.consume_or_unexpected(&TokenKind::LeftParen)?;
+
+        let mut args = vec![];
+
+        while !self.match_token(&TokenKind::RightParen) {
+            let identifier = self.consume_identifier()?;
+            self.consume_or_unexpected(&TokenKind::Colon)?;
+            let typ = self.type_descriptor()?;
+
+            args.push((identifier, typ));
+
+            if self.peek().kind != TokenKind::RightParen {
+                self.consume_or_unexpected(&TokenKind::Comma)?;
+            }
+        }
+
+        let return_type = if self.match_token(&TokenKind::Colon) {
+            self.type_descriptor()?
+        } else {
+            TypeExpr::void(span) 
+        };
+
+        let body = self.statement()?;
+
+        let proc_type = TypeExpr {
+            kind: TypeExprKind::Procedure {
+                return_type: Box::new(return_type.clone()),
+                arguments: args.iter().cloned().map(|(_, typ)| typ).collect()
+            },
+            span,
+        };
+
+        Ok(
+            Stmt::new(StmtKind::Declaration(
+                proc_name, 
+                Some(proc_type),
+                Some(Expr::new(ExprKind::Procedure(args, return_type, Box::new(body)), span)),
+            ), span)
+        )
     }
 
     fn statement_block(&mut self) -> Result<Stmt, Vec<PlanktonError>> {
@@ -236,14 +297,10 @@ impl Parser {
     }
 
     fn statement_let_declaration(&mut self) -> Result<Stmt, Vec<PlanktonError>> {
-        let identifier = self.consume_or_unexpected(&TokenKind::Identifier("".to_string()))?;
-        let span = identifier.span;
-
-        // FIXME: this is horrible, find a better way
-        let var_name = match &identifier.kind {
-            TokenKind::Identifier(val) => val.clone(),
-            _ => unreachable!(),
-        };
+        // let identifier = self.consume_or_unexpected(&TokenKind::Identifier("".to_string()))?;
+        
+        let var_name = self.consume_identifier()?;
+        let span = self.tokens[self.current - 1].span;
 
         let typ = if self.match_token(&TokenKind::Colon) {
             Some(self.type_descriptor()?)
@@ -504,6 +561,9 @@ impl Parser {
     }
 
     fn type_descriptor(&mut self) -> Result<TypeExpr, Vec<PlanktonError>> {
-        todo!()
+        let id = self.consume_identifier()?;
+        let span = self.get_last_span();
+
+        Ok(TypeExpr { span, kind: TypeExprKind::Builtin(id)})
     }
 }
