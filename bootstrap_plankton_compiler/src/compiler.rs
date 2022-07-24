@@ -1,6 +1,9 @@
 use log::info;
 
-use crate::{checked_ast::CheckedAst, lexer::tokenize, parser::parse_tokens, PlanktonError};
+use crate::{
+    ast::Ast, checked_ast::CheckedAst, codegen_c::codegen_c, lexer::tokenize, parser::parse_tokens,
+    typechecker::typecheck, PlanktonError, Res,
+};
 
 pub type FileId = usize;
 
@@ -68,26 +71,39 @@ impl Compiler {
         info!(target: "compiler", "Finished Lexing!");
 
         info!(target: "compiler", "Started Parsing...");
-        let asts = lexed_sources
+        let mut asts = lexed_sources
             .into_iter()
             .enumerate()
             .map(|(i, source)| parse_tokens(source, i))
             .collect::<Result<Vec<_>, Vec<_>>>()?;
         info!(target: "compiler", "Finished Parsing!");
 
-        for (i, ast) in asts.iter().enumerate() {
-            println!("File {}:", i);
-            println!("{:?}", ast);
-        }
-        let _ = asts;
+        // FIXME: There's surely a better way to do this
+        let mut combined_statements = vec![];
 
-        todo!()
+        for ast in asts.iter_mut() {
+            combined_statements.append(&mut ast.statements);
+        }
+
+        let combined_ast = Ast {
+            statements: combined_statements,
+        };
+
+        info!(target: "compiler", "Started Typechecking...");
+        let checked_ast = typecheck(combined_ast)?;
+        info!(target: "compiler", "Finished Typechecking!");
+
+        Ok(checked_ast)
     }
 
     pub fn compile_target(&mut self, target: CompilerTarget) -> Result<String, Vec<PlanktonError>> {
         info!(target: "compiler", "Compiling for target {:?}...", target);
 
-        let _checked_ast = self.generate_checked_ast()?;
+        let checked_ast = self.generate_checked_ast()?;
+
+        info!(target: "compiler", "Starting codegen...");
+
+        info!(target: "compiler", "Finished codegen!");
 
         todo!()
     }

@@ -237,26 +237,30 @@ impl Parser {
         let return_type = if self.match_token(&TokenKind::Colon) {
             self.type_descriptor()?
         } else {
-            TypeExpr::void(span) 
+            TypeExpr::void(span)
         };
 
         let body = self.statement()?;
 
-        let proc_type = TypeExpr {
-            kind: TypeExprKind::Procedure {
-                return_type: Box::new(return_type.clone()),
-                arguments: args.iter().cloned().map(|(_, typ)| typ).collect()
-            },
-            span,
-        };
+        // let proc_type = TypeExpr {
+        //     kind: TypeExprKind::Procedure {
+        //         return_type: Box::new(return_type.clone()),
+        //         arguments: args.iter().cloned().map(|(_, typ)| typ).collect()
+        //     },
+        //     span,
+        // };
 
-        Ok(
-            Stmt::new(StmtKind::Declaration(
-                proc_name, 
-                Some(proc_type),
-                Some(Expr::new(ExprKind::Procedure(args, return_type, Box::new(body)), span)),
-            ), span)
-        )
+        Ok(Stmt::new(
+            StmtKind::Declaration(
+                proc_name,
+                None, // Some(proc_type),
+                Some(Expr::new(
+                    ExprKind::Procedure(args, return_type, Box::new(body)),
+                    span,
+                )),
+            ),
+            span,
+        ))
     }
 
     fn statement_block(&mut self) -> Result<Stmt, Vec<PlanktonError>> {
@@ -298,7 +302,7 @@ impl Parser {
 
     fn statement_let_declaration(&mut self) -> Result<Stmt, Vec<PlanktonError>> {
         // let identifier = self.consume_or_unexpected(&TokenKind::Identifier("".to_string()))?;
-        
+
         let var_name = self.consume_identifier()?;
         let span = self.tokens[self.current - 1].span;
 
@@ -564,6 +568,9 @@ impl Parser {
         let id = self.consume_identifier()?;
         let span = self.get_last_span();
 
-        Ok(TypeExpr { span, kind: TypeExprKind::Builtin(id)})
+        Ok(TypeExpr {
+            span,
+            kind: TypeExprKind::Builtin(id),
+        })
     }
 }

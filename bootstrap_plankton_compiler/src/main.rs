@@ -122,12 +122,19 @@ fn report_all_errors(errs: Vec<PlanktonError>, compiler: &Compiler, json: bool) 
 fn report_error(err: PlanktonError, compiler: &Compiler, json: bool) {
     match err {
         PlanktonError::IOError(err) => report_io_error(err),
+
         PlanktonError::LexerError { message, span } => {
             report_error_at_span(message, span, compiler, json)
         }
+
         PlanktonError::ParserError { message, span } => {
             report_error_at_span(message, span, compiler, json)
         }
+
+        PlanktonError::TypecheckerError { message, span } => {
+            report_error_at_span(message, span, compiler, json)
+        }
+
         PlanktonError::ParserErrrorWithoutSpan(err) => report_string_error(err),
     }
 }
