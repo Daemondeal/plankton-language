@@ -77,6 +77,10 @@ pub struct CheckedExpr {
     pub kind: CheckedExprKind,
 }
 
+pub enum CheckedIntrinsic {
+    Println(CheckedExpr),
+}
+
 pub enum CheckedExprKind {
     Operation(Operator, Vec<CheckedExpr>),
     Grouping(Box<CheckedExpr>),
@@ -85,6 +89,7 @@ pub enum CheckedExprKind {
     If(Box<CheckedExpr>, Box<CheckedStmt>, Option<Box<CheckedStmt>>),
     While(Box<CheckedExpr>, Box<CheckedStmt>),
     Procedure(Vec<(String, TypeId)>, TypeId, Box<CheckedStmt>),
+    Intrinsic(Box<CheckedIntrinsic>),
 }
 
 pub enum CheckedStmtKind {

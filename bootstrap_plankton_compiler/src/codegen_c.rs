@@ -1,8 +1,8 @@
 use crate::{
     ast::LiteralKind,
     checked_ast::{
-        CheckedAst, CheckedExpr, CheckedExprKind, CheckedStmt, CheckedStmtKind, Type, TypeId,
-        TYPEID_BOOL, TYPEID_F32, TYPEID_I32, TYPEID_VOID,
+        CheckedAst, CheckedExpr, CheckedExprKind, CheckedIntrinsic, CheckedStmt, CheckedStmtKind,
+        Type, TypeId, TYPEID_BOOL, TYPEID_F32, TYPEID_I32, TYPEID_STRING, TYPEID_VOID,
     },
     PlanktonError, Res, Span,
 };
@@ -48,6 +48,7 @@ enum CExpr {
     CLiteral(String),
     CVariable(String),
     Assignment(String, Box<CExpr>),
+    Printf(String, Box<CExpr>),
 }
 
 struct CAst {
@@ -205,6 +206,39 @@ impl<'a> Codifier<'a> {
         format!("___temp_000{}", num)
     }
 
+    fn codify_intrinsic(
+        &mut self,
+        intrinsic: &CheckedIntrinsic,
+        parent_block: &mut CBlock,
+        _span: Span,
+    ) -> Res<String> {
+        match intrinsic {
+            CheckedIntrinsic::Println(expr) => {
+                let val = self.codify_expression(expr, parent_block)?;
+
+                let printf_format = if expr.typ == TYPEID_I32 {
+                    "%d"
+                } else if expr.typ == TYPEID_F32 {
+                    "%f"
+                } else if expr.typ == TYPEID_STRING {
+                    "%s"
+                } else if expr.typ == TYPEID_BOOL {
+                    // FIXME: This should print either 'true' or 'false', not '0' or '1'
+                    "%d"
+                } else {
+                    unreachable!("Invalid type for print intrinsic. This is a typechecker error")
+                };
+
+                parent_block.body.push(CStatement::Expression(CExpr::Printf(
+                    printf_format.to_string(),
+                    Box::new(CExpr::CVariable(val)),
+                )));
+
+                Ok("".to_string())
+            }
+        }
+    }
+
     fn codify_expression(&mut self, expr: &CheckedExpr, parent_block: &mut CBlock) -> Res<String> {
         match &expr.kind {
             CheckedExprKind::Operation(_, _) => todo!(),
@@ -257,6 +291,10 @@ impl<'a> Codifier<'a> {
                 "Cannot declare a procedure inside another procedure in C codegen".to_string(),
                 expr.span,
             ),
+
+            CheckedExprKind::Intrinsic(intrinsic) => {
+                self.codify_intrinsic(intrinsic, parent_block, expr.span)
+            }
         }
     }
 
@@ -341,6 +379,9 @@ fn codegen_expr(c_expr: CExpr) -> String {
         CExpr::CLiteral(lit) => lit,
         CExpr::CVariable(name) => name,
         CExpr::Assignment(id, expr) => format!("{} = {}", id, codegen_expr(*expr)),
+        CExpr::Printf(format, content) => {
+            format!("printf(\"{}\\n\", {})", format, codegen_expr(*content))
+        }
     }
 }
 

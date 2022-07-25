@@ -11,6 +11,7 @@ impl Debug for Ast {
     }
 }
 
+#[derive(Debug)]
 pub enum LiteralKind {
     String(String),
     Integer32(i32),
@@ -69,6 +70,7 @@ impl Operator {
     }
 }
 
+#[derive(Debug)]
 pub enum ExprKind {
     Operation(Operator, Vec<Expr>),
     Grouping(Box<Expr>),
@@ -76,9 +78,10 @@ pub enum ExprKind {
     Literal(LiteralKind),
     If(Box<Expr>, Box<Stmt>, Option<Box<Stmt>>),
     While(Box<Expr>, Box<Stmt>),
-    Procedure(Vec<(String, TypeExpr)>, TypeExpr, Box<Stmt>)
+    Procedure(Vec<(String, TypeExpr)>, TypeExpr, Box<Stmt>),
 }
 
+#[derive(Debug)]
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
@@ -90,17 +93,17 @@ impl Expr {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum TypeExprKind {
     Builtin(String), // TODO: Change this
     Void,
     Procedure {
         return_type: Box<TypeExpr>,
-        arguments: Vec<TypeExpr>
-    }
+        arguments: Vec<TypeExpr>,
+    },
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct TypeExpr {
     pub kind: TypeExprKind,
     pub span: Span,
@@ -108,10 +111,14 @@ pub struct TypeExpr {
 
 impl TypeExpr {
     pub fn void(span: Span) -> Self {
-        Self { span, kind: TypeExprKind::Void }
+        Self {
+            span,
+            kind: TypeExprKind::Void,
+        }
     }
 }
 
+#[derive(Debug)]
 pub enum StmtKind {
     Declaration(String, Option<TypeExpr>, Option<Expr>),
     Expression(Expr),
@@ -119,6 +126,7 @@ pub enum StmtKind {
     Block(Vec<Stmt>),
 }
 
+#[derive(Debug)]
 pub struct Stmt {
     pub kind: StmtKind,
     pub span: Span,

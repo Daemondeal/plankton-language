@@ -1,10 +1,11 @@
 use crate::{
     ast::{Ast, Expr, ExprKind, LiteralKind, Operator, Stmt, StmtKind, TypeExpr, TypeExprKind},
     checked_ast::{
-        CheckedAst, CheckedExpr, CheckedExprKind, CheckedStmt, CheckedStmtKind, Type, TypeId,
-        BUILTIN_TYPES, TYPEID_BOOL, TYPEID_F32, TYPEID_I32, TYPEID_STRING, TYPEID_VOID,
+        CheckedAst, CheckedExpr, CheckedExprKind, CheckedIntrinsic, CheckedStmt, CheckedStmtKind,
+        Type, TypeId, BUILTIN_TYPES, TYPEID_BOOL, TYPEID_F32, TYPEID_I32, TYPEID_STRING,
+        TYPEID_VOID,
     },
-    PlanktonError, Res,
+    PlanktonError, Res, Span,
 };
 
 #[derive(PartialEq, Eq)]
@@ -204,11 +205,11 @@ impl Typechecker {
         Ok(CheckedStmt { kind, span })
     }
 
-    #[allow(dead_code)]
     fn typecheck_operator(
         &mut self,
         operator: Operator,
-        _exprs: Vec<CheckedExpr>,
+        mut exprs: Vec<Expr>,
+        span: Span,
     ) -> Res<CheckedExpr> {
         match operator {
             Operator::Sum => todo!(),
@@ -230,7 +231,48 @@ impl Typechecker {
             Operator::GetAddress => todo!(),
             Operator::Dereference => todo!(),
             Operator::IndexAccess => todo!(),
-            Operator::ProcedureCall => todo!(),
+            Operator::ProcedureCall => {
+                let name = match &exprs[0].kind {
+                    ExprKind::Variable(id) => id,
+                    _ => unreachable!("First parameter of procedure call is not a variable, this is a parser error,")
+                };
+
+                // Hardcoded intrinsic
+                if name == "println" {
+                    if exprs.len() != 2 {
+                        return Err(vec![PlanktonError::TypecheckerError {
+                            message: "Too many arguments for intrinsic println".to_string(),
+                            span,
+                        }]);
+                    }
+
+                    let expr = exprs.swap_remove(1);
+
+                    return self.typecheck_println(expr);
+                }
+
+                todo!()
+            }
+        }
+    }
+
+    fn typecheck_println(&mut self, arg: Expr) -> Res<CheckedExpr> {
+        let span = arg.span;
+        let checked = self.typecheck_expr(arg)?;
+
+        if [TYPEID_I32, TYPEID_F32, TYPEID_BOOL].contains(&checked.typ) {
+            let intrinsic = CheckedIntrinsic::Println(checked);
+
+            Ok(CheckedExpr {
+                typ: TYPEID_VOID,
+                kind: CheckedExprKind::Intrinsic(Box::new(intrinsic)),
+                span,
+            })
+        } else {
+            Err(vec![PlanktonError::TypecheckerError {
+                message: format!("Invalid type {:?} for print", self.get_type(checked.typ)),
+                span,
+            }])
         }
     }
 
@@ -238,7 +280,7 @@ impl Typechecker {
         let span = expr.span;
 
         Ok(match expr.kind {
-            ExprKind::Operation(_, _) => todo!(),
+            ExprKind::Operation(op, args) => self.typecheck_operator(op, args, span)?,
 
             ExprKind::Grouping(expr) => {
                 let checked = self.typecheck_expr(*expr)?;
