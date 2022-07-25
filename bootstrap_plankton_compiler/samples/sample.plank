@@ -1,9 +1,9 @@
 proc main() -> int {
-    let x = false
+    let x = 1
 
-    if x {
-        println(1)
-    } else {
-        println(2)
+    while false {
+        let z = 15
     }
+
+    return 0
 }

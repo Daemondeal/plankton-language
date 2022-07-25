@@ -206,6 +206,16 @@ impl<'a> Codifier<'a> {
         format!("___temp_000{}", num)
     }
 
+    fn add_variable(&mut self, typ: CType, parent_block: &mut CBlock) -> String {
+        let name = self.generate_name();
+        parent_block.variables.push(CVariable {
+            identifier: name.clone(),
+            typ: typ,
+        });
+
+        name
+    }
+
     fn codify_intrinsic(
         &mut self,
         intrinsic: &CheckedIntrinsic,
@@ -286,7 +296,35 @@ impl<'a> Codifier<'a> {
                 Ok(CExpr::CVariable("".to_string())) // TODO: Implement yield
             }
 
-            CheckedExprKind::While(_condition, _block) => todo!(),
+            CheckedExprKind::While(condition, block) => {
+                let condition_name = self.add_variable(CType("int".to_string()), parent_block);
+
+                let outside_condition = self.codify_expression(condition, parent_block)?;
+                parent_block
+                    .body
+                    .push(CStatement::Expression(CExpr::Assignment(
+                        condition_name.clone(),
+                        Box::new(outside_condition),
+                    )));
+
+                let mut while_block = CBlock::default();
+                self.codify_statement(block, &mut while_block)?;
+
+                let inside_condition = self.codify_expression(condition, &mut while_block)?;
+                while_block
+                    .body
+                    .push(CStatement::Expression(CExpr::Assignment(
+                        condition_name.clone(),
+                        Box::new(inside_condition),
+                    )));
+
+                parent_block.body.push(CStatement::While(
+                    CExpr::CVariable(condition_name),
+                    Box::new(while_block),
+                ));
+
+                Ok(CExpr::CVariable("".to_string())) // TODO: Implement yield
+            }
 
             CheckedExprKind::Procedure(_, _, _) => Self::error(
                 "Cannot declare a procedure inside another procedure in C codegen".to_string(),
