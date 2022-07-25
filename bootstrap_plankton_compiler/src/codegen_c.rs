@@ -35,7 +35,7 @@ struct CBlock {
 
 enum CStatement {
     Expression(CExpr),
-    Return(String),
+    Return(CExpr),
     If(CExpr, Box<CBlock>, Option<Box<CBlock>>),
 
     Block(CBlock),
@@ -161,14 +161,14 @@ impl<'a> Codifier<'a> {
                     identifier.clone(),
                     self.get_type_name(statement.span, *typ)?,
                 ));
-                let temp_name = self.codify_expression(initializer, parent_block)?;
+                let init_expr = self.codify_expression(initializer, parent_block)?;
 
                 // FIXME: There must be a better way
                 parent_block
                     .body
                     .push(CStatement::Expression(CExpr::Assignment(
                         identifier.clone(),
-                        Box::new(CExpr::CVariable(temp_name)),
+                        Box::new(init_expr),
                     )));
             }
 
@@ -211,7 +211,7 @@ impl<'a> Codifier<'a> {
         intrinsic: &CheckedIntrinsic,
         parent_block: &mut CBlock,
         _span: Span,
-    ) -> Res<String> {
+    ) -> Res<CExpr> {
         match intrinsic {
             CheckedIntrinsic::Println(expr) => {
                 let val = self.codify_expression(expr, parent_block)?;
@@ -231,39 +231,40 @@ impl<'a> Codifier<'a> {
 
                 parent_block.body.push(CStatement::Expression(CExpr::Printf(
                     printf_format.to_string(),
-                    Box::new(CExpr::CVariable(val)),
+                    Box::new(val),
                 )));
 
-                Ok("".to_string())
+                Ok(CExpr::CVariable("".to_string()))
             }
         }
     }
 
-    fn codify_expression(&mut self, expr: &CheckedExpr, parent_block: &mut CBlock) -> Res<String> {
+    fn codify_expression(&mut self, expr: &CheckedExpr, parent_block: &mut CBlock) -> Res<CExpr> {
         match &expr.kind {
             CheckedExprKind::Operation(_, _) => todo!(),
             CheckedExprKind::Grouping(expr) => self.codify_expression(expr, parent_block),
-            CheckedExprKind::Variable(id) => Ok(id.clone()),
+            CheckedExprKind::Variable(id) => Ok(CExpr::CVariable(id.clone())),
             CheckedExprKind::Literal(lit) => {
-                let name = self.generate_name();
+                Ok(CExpr::literal(lit))
+                // let name = self.generate_name();
 
-                parent_block.variables.push(CVariable::new(
-                    name.clone(),
-                    self.get_type_name(expr.span, expr.typ)?,
-                ));
+                // parent_block.variables.push(CVariable::new(
+                //     name.clone(),
+                //     self.get_type_name(expr.span, expr.typ)?,
+                // ));
 
-                parent_block
-                    .body
-                    .push(CStatement::Expression(CExpr::Assignment(
-                        name.clone(),
-                        Box::new(CExpr::literal(lit)),
-                    )));
+                // parent_block
+                //     .body
+                //     .push(CStatement::Expression(CExpr::Assignment(
+                //         name.clone(),
+                //         Box::new(CExpr::literal(lit)),
+                //     )));
 
-                Ok(name)
+                // Ok(name)
             }
 
             CheckedExprKind::If(condition, then_block, else_block) => {
-                let cond_name = self.codify_expression(condition, parent_block)?;
+                let condition = self.codify_expression(condition, parent_block)?;
 
                 let mut c_then_block = CBlock::default();
                 self.codify_statement(then_block, &mut c_then_block)?;
@@ -277,12 +278,12 @@ impl<'a> Codifier<'a> {
                 };
 
                 parent_block.body.push(CStatement::If(
-                    CExpr::CVariable(cond_name),
+                    condition,
                     Box::new(c_then_block),
                     c_else_block,
                 ));
 
-                Ok("".to_string()) // TODO: Implement yield
+                Ok(CExpr::CVariable("".to_string())) // TODO: Implement yield
             }
 
             CheckedExprKind::While(_condition, _block) => todo!(),
@@ -347,7 +348,7 @@ fn codegen_function(function: CFunction) -> String {
 fn codegen_statement(c_statement: CStatement) -> String {
     match c_statement {
         CStatement::Expression(expr) => format!("{};\n", codegen_expr(expr)),
-        CStatement::Return(id) => format!("return {};\n", id),
+        CStatement::Return(expr) => format!("return {};\n", codegen_expr(expr)),
 
         CStatement::If(condition, then_body, else_body) => {
             if let Some(else_body) = else_body {
