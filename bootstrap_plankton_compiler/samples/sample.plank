@@ -3,7 +3,7 @@ proc main() -> int {
 
     println(x)
 
-    _double(&x)
+    double(&x)
 
     println(x)
 
@@ -11,6 +11,6 @@ proc main() -> int {
 }
 
 
-proc _double(x: *int) {
+proc double(x: *int) {
     *x = *x * 2
 }

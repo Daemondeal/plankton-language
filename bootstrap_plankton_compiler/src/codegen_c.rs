@@ -502,10 +502,10 @@ impl<'a> Codifier<'a> {
 }
 
 fn codegen_function(function: CFunction) -> String {
-    let mut result = format!("{} {}(", function.return_type.0, function.name);
+    let mut result = format!("{} {}(", function.return_type.0, mangle(function.name));
 
     for (i, var) in function.arguments.iter().enumerate() {
-        result.push_str(&format!("{} {}", var.typ.0, var.identifier));
+        result.push_str(&format!("{} {}", var.typ.0, mangle(var.identifier.clone())));
 
         // TODO: Find a better way
         if i != function.arguments.len() - 1 {
@@ -550,12 +550,21 @@ fn codegen_statement(c_statement: CStatement) -> String {
     }
 }
 
+// There's probably a more elegant way of doing this
+fn mangle(name: String) -> String {
+    if name == "main" {
+        name
+    } else {
+        format!("__{name}")
+    }
+}
+
 fn codegen_expr(c_expr: CExpr) -> String {
     match c_expr {
         CExpr::Empty => "".to_string(),
         CExpr::CLiteral(lit) => lit,
-        CExpr::CVariable(name) => name,
-        CExpr::Assignment(id, expr) => format!("{} = {}", id, codegen_expr(*expr)),
+        CExpr::CVariable(name) => mangle(name),
+        CExpr::Assignment(id, expr) => format!("{} = {}", mangle(id), codegen_expr(*expr)),
         CExpr::Printf(format, content) => {
             format!("printf(\"{}\\n\", {})", format, codegen_expr(*content))
         }
@@ -569,7 +578,7 @@ fn codegen_expr(c_expr: CExpr) -> String {
         CExpr::FunctionCall(name, exprs) => {
             format!(
                 "{}({})",
-                name,
+                mangle(name),
                 exprs
                     .into_iter()
                     .map(codegen_expr)
@@ -586,7 +595,7 @@ fn codegen_block(c_block: CBlock) -> String {
     let are_there_variables = !c_block.variables.is_empty();
 
     for variable in c_block.variables {
-        result.push_str(&format!("{} {};\n", variable.typ.0, variable.identifier));
+        result.push_str(&format!("{} {};\n", variable.typ.0, mangle(variable.identifier)));
     }
 
     if are_there_variables {
@@ -605,11 +614,11 @@ fn codegen_function_signature(function: &CFunction) -> String {
     format!(
         "{} {}({});\n",
         function.return_type.0,
-        function.name,
+        mangle(function.name.clone()),
         function
             .arguments
             .iter()
-            .map(|arg| format!("{} {}", arg.typ.0, arg.identifier.clone()))
+            .map(|arg| format!("{} {}", arg.typ.0, mangle(arg.identifier.clone())))
             .collect::<Vec<String>>()
             .join(", ")
     )
