@@ -9,6 +9,7 @@ pub enum PlanktonError {
     ParserError { message: String, span: Span },
     ParserErrrorWithoutSpan(String),
     TypecheckerError { message: String, span: Span },
+    CodegenError { message: String, span: Span },
 }
 
 impl From<std::io::Error> for PlanktonError {

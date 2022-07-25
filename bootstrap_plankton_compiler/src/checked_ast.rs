@@ -9,10 +9,10 @@ pub struct CheckedAst {
     pub type_context: Vec<Type>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct TypeId(pub usize);
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Type {
     Builtin(usize),
     Procedure(Vec<TypeId>, TypeId),

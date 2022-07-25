@@ -43,7 +43,7 @@ fn parse_args() -> Result<Args, lexopt::Error> {
     Ok(Args {
         input_file_path: input_path.ok_or("Missing input file")?,
         output_file_path: output_path,
-        target: CompilerTarget::MIPS, // TODO: Allow changing targets
+        target: CompilerTarget::C_LANGUAGE, // TODO: Allow changing targets
         json_errors,
         verbosity,
     })
@@ -85,7 +85,8 @@ fn main() {
 }
 
 fn write_result(_args: Args, result: String) {
-    info!(target: "main", "Finished compiling! Result: {}", result);
+    info!(target: "main", "Finished compiling!");
+    println!("{}", result);
 }
 
 fn load_files(source_paths: &[&str]) -> Result<Vec<Source>, std::io::Error> {
@@ -132,6 +133,10 @@ fn report_error(err: PlanktonError, compiler: &Compiler, json: bool) {
         }
 
         PlanktonError::TypecheckerError { message, span } => {
+            report_error_at_span(message, span, compiler, json)
+        }
+
+        PlanktonError::CodegenError { message, span } => {
             report_error_at_span(message, span, compiler, json)
         }
 

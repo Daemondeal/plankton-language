@@ -234,7 +234,7 @@ impl Parser {
             }
         }
 
-        let return_type = if self.match_token(&TokenKind::Colon) {
+        let return_type = if self.match_token(&TokenKind::Arrow) {
             self.type_descriptor()?
         } else {
             TypeExpr::void(span)

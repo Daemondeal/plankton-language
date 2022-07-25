@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Ast, Expr, ExprKind, LiteralKind, Stmt, StmtKind, TypeExpr, TypeExprKind},
+    ast::{Ast, Expr, ExprKind, LiteralKind, Operator, Stmt, StmtKind, TypeExpr, TypeExprKind},
     checked_ast::{
         CheckedAst, CheckedExpr, CheckedExprKind, CheckedStmt, CheckedStmtKind, Type, TypeId,
         BUILTIN_TYPES, TYPEID_BOOL, TYPEID_F32, TYPEID_I32, TYPEID_STRING, TYPEID_VOID,
@@ -201,6 +201,35 @@ impl Typechecker {
         };
 
         Ok(CheckedStmt { kind, span })
+    }
+
+    fn typecheck_operator(
+        &mut self,
+        operator: Operator,
+        exprs: Vec<CheckedExpr>,
+    ) -> Res<CheckedExpr> {
+        match operator {
+            Operator::Sum => todo!(),
+            Operator::Subtract => todo!(),
+            Operator::Divide => todo!(),
+            Operator::Multiply => todo!(),
+            Operator::LogicAnd => todo!(),
+            Operator::LogicOr => todo!(),
+            Operator::LogicNot => todo!(),
+            Operator::Negate => todo!(),
+            Operator::Equals => todo!(),
+            Operator::NotEquals => todo!(),
+            Operator::LessThan => todo!(),
+            Operator::LessThanEqual => todo!(),
+            Operator::GreaterThan => todo!(),
+            Operator::GreaterThanEqual => todo!(),
+            Operator::Assign => todo!(),
+            Operator::Get => todo!(),
+            Operator::GetAddress => todo!(),
+            Operator::Dereference => todo!(),
+            Operator::IndexAccess => todo!(),
+            Operator::ProcedureCall => todo!(),
+        }
     }
 
     fn typecheck_expr(&mut self, expr: Expr) -> Res<CheckedExpr> {

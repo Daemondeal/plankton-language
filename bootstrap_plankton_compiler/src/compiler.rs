@@ -42,7 +42,7 @@ pub struct CompilerArgs {
 
 #[derive(Clone, Copy, Debug)]
 pub enum CompilerTarget {
-    MIPS,
+    C_LANGUAGE,
 }
 
 impl Compiler {
@@ -102,9 +102,12 @@ impl Compiler {
         let checked_ast = self.generate_checked_ast()?;
 
         info!(target: "compiler", "Starting codegen...");
+        let code = match target {
+            CompilerTarget::C_LANGUAGE => codegen_c(checked_ast)?,
+        };
 
         info!(target: "compiler", "Finished codegen!");
 
-        todo!()
+        Ok(code)
     }
 }
