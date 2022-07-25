@@ -63,13 +63,15 @@ pub const TYPEID_F32: TypeId = TypeId(2);
 pub const TYPEID_BOOL: TypeId = TypeId(3);
 pub const TYPEID_STRING: TypeId = TypeId(4);
 
-pub const BUILTIN_TYPES: &[Type] = &[
+pub const TYPES_BUILTIN: &[Type] = &[
     Type::Builtin(TYPEID_VOID.0),
     Type::Builtin(TYPEID_I32.0),
     Type::Builtin(TYPEID_F32.0),
     Type::Builtin(TYPEID_BOOL.0),
     Type::Builtin(TYPEID_STRING.0),
 ];
+
+pub const TYPES_NUMERIC: &[TypeId] = &[TYPEID_I32, TYPEID_F32];
 
 pub struct CheckedExpr {
     pub typ: TypeId,

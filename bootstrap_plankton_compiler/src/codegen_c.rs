@@ -1,5 +1,5 @@
 use crate::{
-    ast::LiteralKind,
+    ast::{LiteralKind, Operator},
     checked_ast::{
         CheckedAst, CheckedExpr, CheckedExprKind, CheckedIntrinsic, CheckedStmt, CheckedStmtKind,
         Type, TypeId, TYPEID_BOOL, TYPEID_F32, TYPEID_I32, TYPEID_STRING, TYPEID_VOID,
@@ -37,11 +37,8 @@ enum CStatement {
     Expression(CExpr),
     Return(CExpr),
     If(CExpr, Box<CBlock>, Option<Box<CBlock>>),
-
-    Block(CBlock),
-
-    #[allow(dead_code)] // TODO
     While(CExpr, Box<CBlock>),
+    Block(CBlock),
 }
 
 enum CExpr {
@@ -49,6 +46,10 @@ enum CExpr {
     CVariable(String),
     Assignment(String, Box<CExpr>),
     Printf(String, Box<CExpr>),
+
+    Binary(String, Box<CExpr>, Box<CExpr>),
+    Unary(String, Box<CExpr>),
+    FunctionCall(String, Vec<CExpr>),
 }
 
 struct CAst {
@@ -210,7 +211,7 @@ impl<'a> Codifier<'a> {
         let name = self.generate_name();
         parent_block.variables.push(CVariable {
             identifier: name.clone(),
-            typ: typ,
+            typ,
         });
 
         name
@@ -249,9 +250,130 @@ impl<'a> Codifier<'a> {
         }
     }
 
+    fn codify_operator(
+        &mut self,
+        operator: &Operator,
+        exprs: &[CheckedExpr],
+        parent_block: &mut CBlock,
+        span: Span,
+    ) -> Res<CExpr> {
+        Ok(match operator {
+            Operator::Sum => CExpr::Binary(
+                "+".to_string(),
+                Box::new(self.codify_expression(&exprs[0], parent_block)?),
+                Box::new(self.codify_expression(&exprs[1], parent_block)?),
+            ),
+            Operator::Subtract => CExpr::Binary(
+                "-".to_string(),
+                Box::new(self.codify_expression(&exprs[0], parent_block)?),
+                Box::new(self.codify_expression(&exprs[1], parent_block)?),
+            ),
+            Operator::Divide => CExpr::Binary(
+                "/".to_string(),
+                Box::new(self.codify_expression(&exprs[0], parent_block)?),
+                Box::new(self.codify_expression(&exprs[1], parent_block)?),
+            ),
+            Operator::Multiply => CExpr::Binary(
+                "*".to_string(),
+                Box::new(self.codify_expression(&exprs[0], parent_block)?),
+                Box::new(self.codify_expression(&exprs[1], parent_block)?),
+            ),
+            Operator::LogicAnd => CExpr::Binary(
+                "&&".to_string(),
+                Box::new(self.codify_expression(&exprs[0], parent_block)?),
+                Box::new(self.codify_expression(&exprs[1], parent_block)?),
+            ),
+            Operator::LogicOr => CExpr::Binary(
+                "||".to_string(),
+                Box::new(self.codify_expression(&exprs[0], parent_block)?),
+                Box::new(self.codify_expression(&exprs[1], parent_block)?),
+            ),
+
+            // TODO: This and "not equals" should have different implementations for non-builtin types
+            Operator::Equals => CExpr::Binary(
+                "==".to_string(),
+                Box::new(self.codify_expression(&exprs[0], parent_block)?),
+                Box::new(self.codify_expression(&exprs[1], parent_block)?),
+            ),
+            Operator::NotEquals => CExpr::Binary(
+                "!=".to_string(),
+                Box::new(self.codify_expression(&exprs[0], parent_block)?),
+                Box::new(self.codify_expression(&exprs[1], parent_block)?),
+            ),
+
+            Operator::LessThan => CExpr::Binary(
+                "<".to_string(),
+                Box::new(self.codify_expression(&exprs[0], parent_block)?),
+                Box::new(self.codify_expression(&exprs[1], parent_block)?),
+            ),
+            Operator::LessThanEqual => CExpr::Binary(
+                "<=".to_string(),
+                Box::new(self.codify_expression(&exprs[0], parent_block)?),
+                Box::new(self.codify_expression(&exprs[1], parent_block)?),
+            ),
+            Operator::GreaterThan => CExpr::Binary(
+                ">".to_string(),
+                Box::new(self.codify_expression(&exprs[0], parent_block)?),
+                Box::new(self.codify_expression(&exprs[1], parent_block)?),
+            ),
+            Operator::GreaterThanEqual => CExpr::Binary(
+                ">=".to_string(),
+                Box::new(self.codify_expression(&exprs[0], parent_block)?),
+                Box::new(self.codify_expression(&exprs[1], parent_block)?),
+            ),
+            Operator::Assign => CExpr::Binary(
+                "=".to_string(),
+                Box::new(self.codify_expression(&exprs[0], parent_block)?),
+                Box::new(self.codify_expression(&exprs[1], parent_block)?),
+            ),
+
+            Operator::LogicNot => CExpr::Unary(
+                "!".to_string(),
+                Box::new(self.codify_expression(&exprs[0], parent_block)?),
+            ),
+
+            Operator::Negate => CExpr::Unary(
+                "-".to_string(),
+                Box::new(self.codify_expression(&exprs[0], parent_block)?),
+            ),
+
+
+            Operator::GetAddress => CExpr::Unary(
+                "&".to_string(),
+                Box::new(self.codify_expression(&exprs[0], parent_block)?),
+            ),
+
+            Operator::Dereference => CExpr::Unary(
+                "*".to_string(),
+                Box::new(self.codify_expression(&exprs[0], parent_block)?),
+            ),
+
+            Operator::Get => todo!(),
+            Operator::IndexAccess => todo!(),
+
+            Operator::ProcedureCall => {
+                match &exprs[0].kind {
+                    CheckedExprKind::Variable(id) => {
+                        let mut args = vec![];
+
+                        for expr in exprs.iter().skip(1) {
+                            args.push(self.codify_expression(expr, parent_block)?);
+                        }
+
+                        CExpr::FunctionCall(id.clone(), args)
+                    }
+
+                    _ => return Self::error("Procedure calls that are not directly referred by variables are not supported yet".to_string(), span),
+                }
+            },
+        })
+    }
+
     fn codify_expression(&mut self, expr: &CheckedExpr, parent_block: &mut CBlock) -> Res<CExpr> {
         match &expr.kind {
-            CheckedExprKind::Operation(_, _) => todo!(),
+            CheckedExprKind::Operation(operator, exprs) => {
+                self.codify_operator(operator, exprs, parent_block, expr.span)
+            }
             CheckedExprKind::Grouping(expr) => self.codify_expression(expr, parent_block),
             CheckedExprKind::Variable(id) => Ok(CExpr::CVariable(id.clone())),
             CheckedExprKind::Literal(lit) => {
@@ -297,7 +419,7 @@ impl<'a> Codifier<'a> {
             }
 
             CheckedExprKind::While(condition, block) => {
-                let condition_name = self.add_variable(CType("int".to_string()), parent_block);
+                let condition_name = self.add_variable(CType("bool".to_string()), parent_block);
 
                 let outside_condition = self.codify_expression(condition, parent_block)?;
                 parent_block
@@ -367,10 +489,10 @@ impl<'a> Codifier<'a> {
 fn codegen_function(function: CFunction) -> String {
     let mut result = format!("{} {}(", function.return_type.0, function.name);
 
-    // TODO: Find a better way
     for (i, var) in function.arguments.iter().enumerate() {
         result.push_str(&format!("{} {}", var.typ.0, var.identifier));
 
+        // TODO: Find a better way
         if i != function.arguments.len() - 1 {
             result.push(',');
         }
@@ -391,14 +513,14 @@ fn codegen_statement(c_statement: CStatement) -> String {
         CStatement::If(condition, then_body, else_body) => {
             if let Some(else_body) = else_body {
                 format!(
-                    "if ({}) {} else {}\n",
+                    "if ({}) {} else {}",
                     codegen_expr(condition),
                     codegen_block(*then_body),
                     codegen_block(*else_body)
                 )
             } else {
                 format!(
-                    "if ({}) {}\n",
+                    "if ({}) {}",
                     codegen_expr(condition),
                     codegen_block(*then_body)
                 )
@@ -421,17 +543,39 @@ fn codegen_expr(c_expr: CExpr) -> String {
         CExpr::Printf(format, content) => {
             format!("printf(\"{}\\n\", {})", format, codegen_expr(*content))
         }
+
+        CExpr::Binary(op, lhs, rhs) => {
+            format!("({} {} {})", codegen_expr(*lhs), op, codegen_expr(*rhs))
+        }
+
+        CExpr::Unary(op, rhs) => format!("({} {})", op, codegen_expr(*rhs)),
+
+        CExpr::FunctionCall(name, exprs) => {
+            format!(
+                "{}({})",
+                name,
+                exprs
+                    .into_iter()
+                    .map(codegen_expr)
+                    .collect::<Vec<String>>()
+                    .join(",")
+            )
+        }
     }
 }
 
 fn codegen_block(c_block: CBlock) -> String {
     let mut result = "{\n".to_string();
 
+    let are_there_variables = !c_block.variables.is_empty();
+
     for variable in c_block.variables {
         result.push_str(&format!("{} {};\n", variable.typ.0, variable.identifier));
     }
 
-    result.push('\n');
+    if are_there_variables {
+        result.push('\n');
+    }
 
     for statement in c_block.body {
         result.push_str(&codegen_statement(statement));
@@ -441,10 +585,33 @@ fn codegen_block(c_block: CBlock) -> String {
     result
 }
 
+fn codegen_function_signature(function: &CFunction) -> String {
+    format!(
+        "{} {}({});\n",
+        function.return_type.0,
+        function.name,
+        function
+            .arguments
+            .iter()
+            .map(|arg| format!("{} {}", arg.typ.0, arg.identifier.clone()))
+            .collect::<Vec<String>>()
+            .join(", ")
+    )
+}
+
 fn codegen_ast(c_ast: CAst) -> String {
     let mut result = "".to_string();
     for import in c_ast.imports {
         result.push_str(&format!("#include <{}>\n", import));
+    }
+
+    result.push('\n');
+
+    // Forward Declarations
+    for function in &c_ast.functions {
+        if function.name != "main" {
+            result.push_str(&codegen_function_signature(function))
+        }
     }
 
     result.push('\n');

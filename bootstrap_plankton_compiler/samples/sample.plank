@@ -1,9 +1,19 @@
 proc main() -> int {
-    let x = 1
+    let n = fib(20)
 
-    while false {
-        let z = 15
-    }
+    println(n)
 
     return 0
+}
+
+proc fib(x: int) -> int {
+    if x == 0 {
+        return 0
+    }
+    
+    if x < 2 {
+        return 1
+    }
+
+    return fib(x - 1) + fib(x - 2)
 }

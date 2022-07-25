@@ -2,8 +2,8 @@ use crate::{
     ast::{Ast, Expr, ExprKind, LiteralKind, Operator, Stmt, StmtKind, TypeExpr, TypeExprKind},
     checked_ast::{
         CheckedAst, CheckedExpr, CheckedExprKind, CheckedIntrinsic, CheckedStmt, CheckedStmtKind,
-        Type, TypeId, BUILTIN_TYPES, TYPEID_BOOL, TYPEID_F32, TYPEID_I32, TYPEID_STRING,
-        TYPEID_VOID,
+        Type, TypeId, TYPEID_BOOL, TYPEID_F32, TYPEID_I32, TYPEID_STRING, TYPEID_VOID,
+        TYPES_BUILTIN, TYPES_NUMERIC,
     },
     PlanktonError, Res, Span,
 };
@@ -31,10 +31,14 @@ impl Typechecker {
         vec![]
     }
 
+    fn error<T>(message: String, span: Span) -> Res<T> {
+        Err(vec![PlanktonError::TypecheckerError { message, span }])
+    }
+
     pub fn new() -> Self {
         let mut type_context = vec![];
 
-        for typ in BUILTIN_TYPES {
+        for typ in TYPES_BUILTIN {
             type_context.push(typ.clone());
         }
 
@@ -68,6 +72,15 @@ impl Typechecker {
     fn add_to_context(&mut self, id: String, typ: TypeId) {
         // We should always be in some kind of context
         self.contexts.last_mut().unwrap().variables.push((id, typ));
+    }
+
+    fn exists_in_latest_context(&mut self, id: &str) -> bool {
+        self.contexts
+            .last_mut()
+            .unwrap()
+            .variables
+            .iter()
+            .any(|(name, _)| name == id)
     }
 
     #[allow(dead_code)]
@@ -104,6 +117,27 @@ impl Typechecker {
 
     pub fn typecheck(mut self, ast: Ast) -> Res<CheckedAst> {
         let mut checked_statements = vec![];
+
+        // Add to context
+        for stmt in &ast.statements {
+            match &stmt.kind {
+                StmtKind::Declaration(id, _, Some(expr)) => match &expr.kind {
+                    ExprKind::Procedure(args, return_type, _) => {
+                        let mut checked_args = vec![];
+                        for (_, typ) in args {
+                            checked_args.push(self.parse_type_expr(typ.clone())?);
+                        }
+
+                        let return_type = self.parse_type_expr(return_type.clone())?;
+
+                        let proc_type = self.add_type(Type::Procedure(checked_args, return_type));
+                        self.add_to_context(id.clone(), proc_type);
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
 
         // FIXME: This should support multiple errors
         for stmt in ast.statements {
@@ -176,7 +210,17 @@ impl Typechecker {
                 };
 
                 if let Some(typ) = typ {
-                    self.add_to_context(identifier.clone(), typ);
+                    match self.get_type(typ) {
+                        Type::Procedure(_, _) => {
+                            if !self.exists_in_latest_context(&identifier) {
+                                self.add_to_context(identifier.clone(), typ);
+                            }
+                        }
+                        _ => {
+                            self.add_to_context(identifier.clone(), typ);
+                        }
+                    }
+
                     CheckedStmtKind::Declaration(identifier, typ, initializer)
                 } else {
                     return Err(vec![PlanktonError::TypecheckerError {
@@ -205,37 +249,173 @@ impl Typechecker {
         Ok(CheckedStmt { kind, span })
     }
 
+    fn get_binary_args(&mut self, mut exprs: Vec<Expr>) -> Res<(CheckedExpr, CheckedExpr)> {
+        assert!(
+            exprs.len() == 2,
+            "Operator has more than two arguments, this is a parser bug"
+        );
+
+        let b = exprs.pop().unwrap();
+        let a = exprs.pop().unwrap();
+
+        let a = self.typecheck_expr(a)?;
+        let b = self.typecheck_expr(b)?;
+
+        Ok((a, b))
+    }
+
+    fn get_same_binary_args(
+        &mut self,
+        exprs: Vec<Expr>,
+        span: Span,
+    ) -> Res<(CheckedExpr, CheckedExpr)> {
+        let (a, b) = self.get_binary_args(exprs)?;
+
+        if a.typ != b.typ {
+            return Self::error("Operators should have the same type".to_string(), span);
+        }
+
+        Ok((a, b))
+    }
+
+    fn get_same_binary_args_with_types(
+        &mut self,
+        exprs: Vec<Expr>,
+        legal_types: &[TypeId],
+        span: Span,
+    ) -> Res<(CheckedExpr, CheckedExpr)> {
+        let (a, b) = self.get_binary_args(exprs)?;
+
+        if a.typ != b.typ {
+            return Self::error("Operators should have the same type".to_string(), span);
+        } else if !legal_types.contains(&a.typ) {
+            return Self::error(
+                format!("Invalid type {:?} for sum", self.get_type(a.typ)),
+                a.span,
+            );
+        }
+
+        Ok((a, b))
+    }
+
     fn typecheck_operator(
         &mut self,
         operator: Operator,
         mut exprs: Vec<Expr>,
         span: Span,
     ) -> Res<CheckedExpr> {
-        match operator {
-            Operator::Sum => todo!(),
-            Operator::Subtract => todo!(),
-            Operator::Divide => todo!(),
-            Operator::Multiply => todo!(),
-            Operator::LogicAnd => todo!(),
-            Operator::LogicOr => todo!(),
+        let (typ, kind) = match operator {
+            Operator::Sum => {
+                let (a, b) = self.get_same_binary_args_with_types(exprs, TYPES_NUMERIC, span)?;
+
+                (a.typ, CheckedExprKind::Operation(operator, vec![a, b]))
+            }
+
+            Operator::Subtract => {
+                let (a, b) = self.get_same_binary_args_with_types(exprs, TYPES_NUMERIC, span)?;
+
+                (a.typ, CheckedExprKind::Operation(operator, vec![a, b]))
+            }
+            Operator::Divide => {
+                let (a, b) = self.get_same_binary_args_with_types(exprs, TYPES_NUMERIC, span)?;
+
+                (a.typ, CheckedExprKind::Operation(operator, vec![a, b]))
+            }
+            Operator::Multiply => {
+                let (a, b) = self.get_same_binary_args_with_types(exprs, TYPES_NUMERIC, span)?;
+
+                (a.typ, CheckedExprKind::Operation(operator, vec![a, b]))
+            }
+            Operator::LogicAnd => {
+                let (a, b) = self.get_same_binary_args_with_types(exprs, &[TYPEID_BOOL], span)?;
+
+                (
+                    TYPEID_BOOL,
+                    CheckedExprKind::Operation(operator, vec![a, b]),
+                )
+            }
+            Operator::LogicOr => {
+                let (a, b) = self.get_same_binary_args_with_types(exprs, &[TYPEID_BOOL], span)?;
+
+                (
+                    TYPEID_BOOL,
+                    CheckedExprKind::Operation(operator, vec![a, b]),
+                )
+            }
+            Operator::LessThan => {
+                let (a, b) = self.get_same_binary_args_with_types(exprs, TYPES_NUMERIC, span)?;
+
+                (
+                    TYPEID_BOOL,
+                    CheckedExprKind::Operation(operator, vec![a, b]),
+                )
+            }
+            Operator::LessThanEqual => {
+                let (a, b) = self.get_same_binary_args_with_types(exprs, TYPES_NUMERIC, span)?;
+
+                (
+                    TYPEID_BOOL,
+                    CheckedExprKind::Operation(operator, vec![a, b]),
+                )
+            }
+            Operator::GreaterThan => {
+                let (a, b) = self.get_same_binary_args_with_types(exprs, TYPES_NUMERIC, span)?;
+
+                (
+                    TYPEID_BOOL,
+                    CheckedExprKind::Operation(operator, vec![a, b]),
+                )
+            }
+            Operator::GreaterThanEqual => {
+                let (a, b) = self.get_same_binary_args_with_types(exprs, TYPES_NUMERIC, span)?;
+
+                (
+                    TYPEID_BOOL,
+                    CheckedExprKind::Operation(operator, vec![a, b]),
+                )
+            }
+
             Operator::LogicNot => todo!(),
             Operator::Negate => todo!(),
-            Operator::Equals => todo!(),
-            Operator::NotEquals => todo!(),
-            Operator::LessThan => todo!(),
-            Operator::LessThanEqual => todo!(),
-            Operator::GreaterThan => todo!(),
-            Operator::GreaterThanEqual => todo!(),
-            Operator::Assign => todo!(),
-            Operator::Get => todo!(),
+
+            Operator::Equals => {
+                let (a, b) = self.get_same_binary_args(exprs, span)?;
+
+                (
+                    TYPEID_BOOL,
+                    CheckedExprKind::Operation(operator, vec![a, b]),
+                )
+            }
+            Operator::NotEquals => {
+                let (a, b) = self.get_same_binary_args(exprs, span)?;
+
+                (
+                    TYPEID_BOOL,
+                    CheckedExprKind::Operation(operator, vec![a, b]),
+                )
+            }
+
+            Operator::Assign => {
+                let (a, b) = self.get_same_binary_args(exprs, span)?;
+
+                (
+                    TYPEID_VOID, // Assign with a return type always looks weird
+                    CheckedExprKind::Operation(operator, vec![a, b]),
+                )
+            }
+
+            // TODO: Implement pointers
             Operator::GetAddress => todo!(),
             Operator::Dereference => todo!(),
+
+            Operator::Get => todo!(),
             Operator::IndexAccess => todo!(),
+
             Operator::ProcedureCall => {
                 let name = match &exprs[0].kind {
                     ExprKind::Variable(id) => id,
                     _ => unreachable!("First parameter of procedure call is not a variable, this is a parser error,")
-                };
+                }.clone();
 
                 // Hardcoded intrinsic
                 if name == "println" {
@@ -251,9 +431,48 @@ impl Typechecker {
                     return self.typecheck_println(expr);
                 }
 
-                todo!()
+                let mut checked_exprs = vec![];
+
+                for expr in exprs {
+                    checked_exprs.push(self.typecheck_expr(expr)?);
+                }
+
+                let proc_type = if let Some(typ_id) = self.get_from_context(&name) {
+                    self.get_type(typ_id)
+                } else {
+                    return Err(vec![PlanktonError::TypecheckerError {
+                        message: format!("Procedure {} does not exist", name),
+                        span,
+                    }]);
+                };
+
+                match proc_type {
+                    Type::Procedure(args, return_type) => {
+                        for (arg_typ, expr) in args.iter().zip(checked_exprs.iter().skip(1)) {
+                            if *arg_typ != expr.typ {
+                                return Err(vec![PlanktonError::TypecheckerError {
+                                    message: "Invalid argument type".to_string(),
+                                    span: expr.span,
+                                }]);
+                            }
+                        }
+
+                        (
+                            *return_type,
+                            CheckedExprKind::Operation(Operator::ProcedureCall, checked_exprs),
+                        )
+                    }
+                    _ => {
+                        return Err(vec![PlanktonError::TypecheckerError {
+                            message: format!("{} is not a procedure", name),
+                            span,
+                        }])
+                    }
+                }
             }
-        }
+        };
+
+        Ok(CheckedExpr { typ, span, kind })
     }
 
     fn typecheck_println(&mut self, arg: Expr) -> Res<CheckedExpr> {
@@ -332,6 +551,7 @@ impl Typechecker {
                 let condition = self.typecheck_expr(*condition)?;
                 if condition.typ != TYPEID_BOOL {
                     return Err(vec![PlanktonError::TypecheckerError {
+                        // TODO: Find a better error message
                         message: "If condition must return a boolean value.".to_string(),
                         span: condition.span,
                     }]);
@@ -361,10 +581,12 @@ impl Typechecker {
             ExprKind::Procedure(params, return_type, body) => {
                 self.push_context(ContextKind::Procedure);
 
+                // FIXME: Procedure types are parsed twice
                 let mut variables = vec![];
 
                 for (id, typ_expr) in params {
                     let typ = self.parse_type_expr(typ_expr)?;
+
                     self.add_to_context(id.clone(), typ);
                     variables.push((id, typ));
                 }
