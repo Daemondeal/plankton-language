@@ -7,8 +7,10 @@ use crate::{
     PlanktonError, Res, Span,
 };
 
+#[derive(Debug)]
 struct CType(String);
 
+#[derive(Debug)]
 struct CVariable {
     pub identifier: String,
     pub typ: CType,
@@ -27,12 +29,13 @@ struct CFunction {
     body: CBlock,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct CBlock {
     variables: Vec<CVariable>,
     body: Vec<CStatement>,
 }
 
+#[derive(Debug)]
 enum CStatement {
     Expression(CExpr),
     Return(CExpr),
@@ -41,6 +44,7 @@ enum CStatement {
     Block(CBlock),
 }
 
+#[derive(Debug)]
 enum CExpr {
     CLiteral(String),
     CVariable(String),
@@ -104,6 +108,10 @@ impl<'a> Codifier<'a> {
                 } else {
                     return Self::error(format!("Type {:?} not implemented", typ), span);
                 }
+            }
+
+            Type::Pointer(pointed_typ) => {
+                format!("{}*", self.get_type_name(span, *pointed_typ)?.0)
             }
 
             Type::Procedure(_args, _return_type) => {
@@ -174,7 +182,8 @@ impl<'a> Codifier<'a> {
             }
 
             CheckedStmtKind::Expression(expr) => {
-                self.codify_expression(expr, parent_block)?;
+                let expr = self.codify_expression(expr, parent_block)?;
+                parent_block.body.push(CStatement::Expression(expr));
             }
 
             CheckedStmtKind::Return(expr) => {
@@ -321,7 +330,8 @@ impl<'a> Codifier<'a> {
                 Box::new(self.codify_expression(&exprs[0], parent_block)?),
                 Box::new(self.codify_expression(&exprs[1], parent_block)?),
             ),
-            Operator::Assign => CExpr::Binary(
+            Operator::Assign => 
+                CExpr::Binary(
                 "=".to_string(),
                 Box::new(self.codify_expression(&exprs[0], parent_block)?),
                 Box::new(self.codify_expression(&exprs[1], parent_block)?),

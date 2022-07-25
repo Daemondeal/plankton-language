@@ -1,9 +1,9 @@
 use crate::{
     ast::{LiteralKind, Operator},
-    Span,
+    PlanktonError, Res, Span,
 };
 
-// TODO
+#[derive(Debug)]
 pub struct CheckedAst {
     pub statements: Vec<CheckedStmt>,
     pub type_context: Vec<Type>,
@@ -16,11 +16,12 @@ pub struct TypeId(pub usize);
 pub enum Type {
     Builtin(usize),
     Procedure(Vec<TypeId>, TypeId),
+    Pointer(TypeId),
 }
 
 impl Type {
-    pub fn get_default(&self, span: Span) -> CheckedExpr {
-        match self {
+    pub fn get_default(&self, span: Span) -> Res<CheckedExpr> {
+        Ok(match self {
             Self::Builtin(id) => {
                 // Kinda ugly
                 if id == &TYPEID_I32.0 {
@@ -52,8 +53,10 @@ impl Type {
                 }
             }
 
+            Self::Pointer(_) => return Err(vec![PlanktonError::TypecheckerError { message: "Cannot initialize a pointer without a value".to_string(), span }]),
+
             Self::Procedure(_, _) => unreachable!("Tried to get default initializer for invalid type. Something has gone wrong while parsing.")
-        }
+        })
     }
 }
 
@@ -73,16 +76,19 @@ pub const TYPES_BUILTIN: &[Type] = &[
 
 pub const TYPES_NUMERIC: &[TypeId] = &[TYPEID_I32, TYPEID_F32];
 
+#[derive(Debug)]
 pub struct CheckedExpr {
     pub typ: TypeId,
     pub span: Span,
     pub kind: CheckedExprKind,
 }
 
+#[derive(Debug)]
 pub enum CheckedIntrinsic {
     Println(CheckedExpr),
 }
 
+#[derive(Debug)]
 pub enum CheckedExprKind {
     Operation(Operator, Vec<CheckedExpr>),
     Grouping(Box<CheckedExpr>),
@@ -94,6 +100,7 @@ pub enum CheckedExprKind {
     Intrinsic(Box<CheckedIntrinsic>),
 }
 
+#[derive(Debug)]
 pub enum CheckedStmtKind {
     Declaration(String, TypeId, CheckedExpr),
     Expression(CheckedExpr),
@@ -101,6 +108,7 @@ pub enum CheckedStmtKind {
     Block(Vec<CheckedStmt>),
 }
 
+#[derive(Debug)]
 pub struct CheckedStmt {
     pub kind: CheckedStmtKind,
     pub span: Span,

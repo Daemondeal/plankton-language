@@ -199,7 +199,7 @@ impl Typechecker {
 
                     checked
                 } else if let Some(typ) = typ {
-                    self.get_type(typ).get_default(stmt.span)
+                    self.get_type(typ).get_default(stmt.span)?
                 } else {
                     return Err(vec![PlanktonError::TypecheckerError {
                         message:
@@ -289,13 +289,14 @@ impl Typechecker {
         if a.typ != b.typ {
             return Self::error("Operators should have the same type".to_string(), span);
         } else if !legal_types.contains(&a.typ) {
-            return Self::error(
-                format!("Invalid type {:?} for sum", self.get_type(a.typ)),
-                a.span,
-            );
+            return Self::error(format!("Invalid type {:?}", self.get_type(a.typ)), a.span);
         }
 
         Ok((a, b))
+    }
+
+    fn get_unary(&mut self, mut exprs: Vec<Expr>) -> Res<CheckedExpr> {
+        Ok(self.typecheck_expr(exprs.pop().unwrap())?)
     }
 
     fn typecheck_operator(
@@ -375,8 +376,20 @@ impl Typechecker {
                 )
             }
 
-            Operator::LogicNot => todo!(),
-            Operator::Negate => todo!(),
+            Operator::LogicNot => {
+                let rhs = self.get_unary(exprs)?;
+
+                if rhs.typ != TYPEID_BOOL {
+                    return Self::error("Only booleans are valid for logic not".to_string(), span);
+                }
+
+                (TYPEID_BOOL, CheckedExprKind::Operation(operator, vec![rhs]))
+            }
+            Operator::Negate => {
+                let rhs = self.get_unary(exprs)?;
+
+                (rhs.typ, CheckedExprKind::Operation(operator, vec![rhs]))
+            }
 
             Operator::Equals => {
                 let (a, b) = self.get_same_binary_args(exprs, span)?;
@@ -405,8 +418,25 @@ impl Typechecker {
             }
 
             // TODO: Implement pointers
-            Operator::GetAddress => todo!(),
-            Operator::Dereference => todo!(),
+            Operator::GetAddress => {
+                let rhs = self.get_unary(exprs)?;
+
+                let pointer = self.add_type(Type::Pointer(rhs.typ));
+
+                (pointer, CheckedExprKind::Operation(operator, vec![rhs]))
+            }
+            Operator::Dereference => {
+                let rhs = self.get_unary(exprs)?;
+
+                match self.get_type(rhs.typ) {
+                    &Type::Pointer(pointed) => {
+                        (pointed, CheckedExprKind::Operation(operator, vec![rhs]))
+                    }
+                    _ => {
+                        return Self::error("Can only dereference pointers".to_string(), rhs.span);
+                    }
+                }
+            }
 
             Operator::Get => todo!(),
             Operator::IndexAccess => todo!(),
