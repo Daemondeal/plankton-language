@@ -165,6 +165,12 @@ impl Typechecker {
 
             TypeExprKind::Void => Ok(TYPEID_VOID),
 
+            // TODO: Ensure that type can indeed be pointed to
+            TypeExprKind::Pointer(pointed) => {
+                let typ = Type::Pointer(self.parse_type_expr(*pointed)?);
+                Ok(self.add_type(typ))
+            }
+
             TypeExprKind::Procedure {
                 return_type: _,
                 arguments: _,

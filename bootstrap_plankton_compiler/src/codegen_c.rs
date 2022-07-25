@@ -22,6 +22,7 @@ impl CVariable {
     }
 }
 
+#[derive(Debug)]
 struct CFunction {
     name: String,
     return_type: CType,
@@ -44,8 +45,9 @@ enum CStatement {
     Block(CBlock),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum CExpr {
+    Empty,
     CLiteral(String),
     CVariable(String),
     Assignment(String, Box<CExpr>),
@@ -56,6 +58,7 @@ enum CExpr {
     FunctionCall(String, Vec<CExpr>),
 }
 
+#[derive(Debug)]
 struct CAst {
     pub imports: Vec<String>,
     pub functions: Vec<CFunction>,
@@ -183,7 +186,9 @@ impl<'a> Codifier<'a> {
 
             CheckedStmtKind::Expression(expr) => {
                 let expr = self.codify_expression(expr, parent_block)?;
-                parent_block.body.push(CStatement::Expression(expr));
+                if expr != CExpr::Empty {
+                    parent_block.body.push(CStatement::Expression(expr));
+                }
             }
 
             CheckedStmtKind::Return(expr) => {
@@ -254,7 +259,7 @@ impl<'a> Codifier<'a> {
                     Box::new(val),
                 )));
 
-                Ok(CExpr::CVariable("".to_string()))
+                Ok(CExpr::Empty)
             }
         }
     }
@@ -425,7 +430,7 @@ impl<'a> Codifier<'a> {
                     c_else_block,
                 ));
 
-                Ok(CExpr::CVariable("".to_string())) // TODO: Implement yield
+                Ok(CExpr::Empty) // TODO: Implement yield
             }
 
             CheckedExprKind::While(condition, block) => {
@@ -455,7 +460,7 @@ impl<'a> Codifier<'a> {
                     Box::new(while_block),
                 ));
 
-                Ok(CExpr::CVariable("".to_string())) // TODO: Implement yield
+                Ok(CExpr::Empty) // TODO: Implement yield
             }
 
             CheckedExprKind::Procedure(_, _, _) => Self::error(
@@ -547,6 +552,7 @@ fn codegen_statement(c_statement: CStatement) -> String {
 
 fn codegen_expr(c_expr: CExpr) -> String {
     match c_expr {
+        CExpr::Empty => "".to_string(),
         CExpr::CLiteral(lit) => lit,
         CExpr::CVariable(name) => name,
         CExpr::Assignment(id, expr) => format!("{} = {}", id, codegen_expr(*expr)),

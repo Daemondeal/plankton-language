@@ -96,6 +96,7 @@ impl Expr {
 #[derive(Debug, Clone)]
 pub enum TypeExprKind {
     Builtin(String), // TODO: Change this
+    Pointer(Box<TypeExpr>),
     Void,
     Procedure {
         return_type: Box<TypeExpr>,

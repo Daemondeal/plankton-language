@@ -15,6 +15,7 @@ fn convert_type_expr(typ_expr: &TypeExpr) -> String {
     match &typ_expr.kind {
         TypeExprKind::Builtin(name) => name.clone(),
         TypeExprKind::Void => "void".to_string(),
+        TypeExprKind::Pointer(pointed) => format!("ptr {}", convert_type_expr(pointed)),
         TypeExprKind::Procedure {
             return_type,
             arguments,

@@ -1,10 +1,16 @@
 proc main() -> int {
     let x = 15
-    let y = &x
-
-
-    *y = 27
 
     println(x)
+
+    _double(&x)
+
+    println(x)
+
     return 0
+}
+
+
+proc _double(x: *int) {
+    *x = *x * 2
 }

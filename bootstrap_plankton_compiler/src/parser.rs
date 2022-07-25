@@ -564,7 +564,15 @@ impl Parser {
         Ok(Expr::new(ExprKind::While(condition, body), span))
     }
 
+    // FIXME: This will become more powerful later on
     fn type_descriptor(&mut self) -> Result<TypeExpr, Vec<PlanktonError>> {
+        if self.match_token(&TokenKind::Star) {
+            return Ok(TypeExpr {
+                span: self.get_last_span(),
+                kind: TypeExprKind::Pointer(Box::new(self.type_descriptor()?)),
+            });
+        }
+
         let id = self.consume_identifier()?;
         let span = self.get_last_span();
 
