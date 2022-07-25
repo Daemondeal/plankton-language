@@ -2,7 +2,7 @@ use log::info;
 
 use crate::{
     ast::Ast, checked_ast::CheckedAst, codegen_c::codegen_c, lexer::tokenize, parser::parse_tokens,
-    typechecker::typecheck, PlanktonError, Res,
+    typechecker::typecheck, PlanktonError,
 };
 
 pub type FileId = usize;
@@ -42,7 +42,7 @@ pub struct CompilerArgs {
 
 #[derive(Clone, Copy, Debug)]
 pub enum CompilerTarget {
-    C_LANGUAGE,
+    CLanguage,
 }
 
 impl Compiler {
@@ -103,7 +103,7 @@ impl Compiler {
 
         info!(target: "compiler", "Starting codegen...");
         let code = match target {
-            CompilerTarget::C_LANGUAGE => codegen_c(checked_ast)?,
+            CompilerTarget::CLanguage => codegen_c(checked_ast)?,
         };
 
         info!(target: "compiler", "Finished codegen!");

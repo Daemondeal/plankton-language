@@ -23,8 +23,7 @@ fn convert_type_expr(typ_expr: &TypeExpr) -> String {
 
             // TODO: Fix this
             for (i, arg) in arguments.iter().enumerate() {
-                
-                res.push_str(&format!("{}", convert_type_expr(arg)));
+                res.push_str(&convert_type_expr(arg));
                 if i < arguments.len() - 1 {
                     res.push(' ');
                 }
@@ -110,17 +109,14 @@ fn convert_expr(expr: &Expr, indent: usize) -> String {
             convert_expr(check, indent),
             convert_stmt(body, indent)
         ),
-        ExprKind::Procedure(arguments, return_type, body) => {
+        ExprKind::Procedure(arguments, _return_type, body) => {
             let mut res = "(proc ".to_string();
 
             for (arg, _) in arguments {
                 res.push_str(&format!("{} ", arg));
             }
 
-            res.push_str(&format!(
-                "{})",
-                convert_stmt(body, indent)
-            ));
+            res.push_str(&format!("{})", convert_stmt(body, indent)));
 
             res
         }

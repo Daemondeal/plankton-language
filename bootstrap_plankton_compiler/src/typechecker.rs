@@ -69,6 +69,7 @@ impl Typechecker {
         self.contexts.last_mut().unwrap().variables.push((id, typ));
     }
 
+    #[allow(dead_code)]
     fn is_within_context(&self, kind: ContextKind) -> bool {
         self.contexts.iter().any(|c| c.kind == kind)
     }
@@ -203,10 +204,11 @@ impl Typechecker {
         Ok(CheckedStmt { kind, span })
     }
 
+    #[allow(dead_code)]
     fn typecheck_operator(
         &mut self,
         operator: Operator,
-        exprs: Vec<CheckedExpr>,
+        _exprs: Vec<CheckedExpr>,
     ) -> Res<CheckedExpr> {
         match operator {
             Operator::Sum => todo!(),

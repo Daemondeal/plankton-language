@@ -1,5 +1,5 @@
 [alias]
-debug = ["run", "./samples/sample.plank"]
+debug = ["run", "./samples/sample.plank", "-o", "./plankton_target/output.c"]
 
 [env]
 RUST_LOG = "trace"

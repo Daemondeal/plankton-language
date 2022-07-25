@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Ast, Expr, LiteralKind},
+    ast::LiteralKind,
     checked_ast::{
         CheckedAst, CheckedExpr, CheckedExprKind, CheckedStmt, CheckedStmtKind, Type, TypeId,
         TYPEID_BOOL, TYPEID_F32, TYPEID_I32, TYPEID_VOID,
@@ -36,9 +36,12 @@ struct CBlock {
 enum CStatement {
     Expression(CExpr),
     Return(String),
-    If(String, Box<CBlock>, Option<Box<CBlock>>),
-    While(CExpr, Box<CBlock>),
+    If(CExpr, Box<CBlock>, Option<Box<CBlock>>),
+
     Block(CBlock),
+
+    #[allow(dead_code)] // TODO
+    While(CExpr, Box<CBlock>),
 }
 
 enum CExpr {
@@ -50,6 +53,8 @@ enum CExpr {
 struct CAst {
     pub imports: Vec<String>,
     pub functions: Vec<CFunction>,
+
+    #[allow(dead_code)]
     pub globals: Vec<CStatement>,
 }
 
@@ -111,7 +116,7 @@ impl<'a> Codifier<'a> {
         let mut codifier = Self {
             type_context: &ast.type_context,
             coded_ast: CAst {
-                imports: vec!["stdio".to_string()],
+                imports: vec!["stdio.h".to_string(), "stdbool.h".to_string()],
                 functions: vec![],
                 globals: vec![],
             },
@@ -124,11 +129,28 @@ impl<'a> Codifier<'a> {
 
     fn codify_procedure(
         &mut self,
+        name: &str,
         args: &[(String, TypeId)],
         return_type: TypeId,
         body: &CheckedStmt,
+        span: Span,
     ) -> Res<CFunction> {
-        todo!()
+        let mut c_args = vec![];
+        for (id, typ) in args {
+            c_args.push(CVariable::new(id.clone(), self.get_type_name(span, *typ)?));
+        }
+
+        let return_type = self.get_type_name(span, return_type)?;
+
+        let mut c_body = CBlock::default();
+        self.codify_statement(body, &mut c_body)?;
+
+        Ok(CFunction {
+            name: name.to_string(),
+            return_type,
+            arguments: c_args,
+            body: c_body,
+        })
     }
 
     fn codify_statement(&mut self, statement: &CheckedStmt, parent_block: &mut CBlock) -> Res<()> {
@@ -138,7 +160,7 @@ impl<'a> Codifier<'a> {
                     identifier.clone(),
                     self.get_type_name(statement.span, *typ)?,
                 ));
-                let temp_name = self.codify_expression(&initializer, parent_block)?;
+                let temp_name = self.codify_expression(initializer, parent_block)?;
 
                 // FIXME: There must be a better way
                 parent_block
@@ -150,22 +172,22 @@ impl<'a> Codifier<'a> {
             }
 
             CheckedStmtKind::Expression(expr) => {
-                self.codify_expression(&expr, parent_block)?;
+                self.codify_expression(expr, parent_block)?;
             }
 
             CheckedStmtKind::Return(expr) => {
-                let return_name = self.codify_expression(&expr, parent_block)?;
+                let return_name = self.codify_expression(expr, parent_block)?;
                 parent_block.body.push(CStatement::Return(return_name));
             }
             CheckedStmtKind::Block(body) => {
-                if parent_block.body.len() == 0 {
+                if parent_block.body.is_empty() {
                     for statement in body {
-                        self.codify_statement(&statement, parent_block)?;
+                        self.codify_statement(statement, parent_block)?;
                     }
                 } else {
                     let mut new_block = CBlock::default();
                     for statement in body {
-                        self.codify_statement(&statement, &mut new_block)?;
+                        self.codify_statement(statement, &mut new_block)?;
                     }
                     parent_block.body.push(CStatement::Block(new_block))
                 }
@@ -180,7 +202,7 @@ impl<'a> Codifier<'a> {
         let num = self.current_var_number;
         self.current_var_number += 1;
 
-        format!("temp_000{}", num)
+        format!("___temp_000{}", num)
     }
 
     fn codify_expression(&mut self, expr: &CheckedExpr, parent_block: &mut CBlock) -> Res<String> {
@@ -221,7 +243,7 @@ impl<'a> Codifier<'a> {
                 };
 
                 parent_block.body.push(CStatement::If(
-                    cond_name,
+                    CExpr::CVariable(cond_name),
                     Box::new(c_then_block),
                     c_else_block,
                 ));
@@ -229,7 +251,7 @@ impl<'a> Codifier<'a> {
                 Ok("".to_string()) // TODO: Implement yield
             }
 
-            CheckedExprKind::While(condition, block) => todo!(),
+            CheckedExprKind::While(_condition, _block) => todo!(),
 
             CheckedExprKind::Procedure(_, _, _) => Self::error(
                 "Cannot declare a procedure inside another procedure in C codegen".to_string(),
@@ -241,13 +263,14 @@ impl<'a> Codifier<'a> {
     pub fn codify_ast(&mut self, ast: &'a CheckedAst) -> Res<()> {
         for statement in &ast.statements {
             match &statement.kind {
-                CheckedStmtKind::Declaration(_, _, initializer) => match &initializer.kind {
+                CheckedStmtKind::Declaration(id, _typ, initializer) => match &initializer.kind {
                     CheckedExprKind::Procedure(args, return_type, body) => {
-                        let proc = self.codify_procedure(args, *return_type, body)?;
+                        let proc =
+                            self.codify_procedure(id, args, *return_type, body, statement.span)?;
 
                         self.coded_ast.functions.push(proc);
                     }
-                    _ => todo!("TODO: Implement global declarations"), //c_globals.push(self.codify_statement(&statement)),
+                    _ => todo!("TODO: Implement global declarations"),
                 },
 
                 _ => {
@@ -264,94 +287,99 @@ impl<'a> Codifier<'a> {
     }
 }
 
-struct CodegenC {
-    // ast: CheckedAst,
-    type_context: Vec<Type>,
+fn codegen_function(function: CFunction) -> String {
+    let mut result = format!("{} {}(", function.return_type.0, function.name);
+
+    // TODO: Find a better way
+    for (i, var) in function.arguments.iter().enumerate() {
+        result.push_str(&format!("{} {}", var.typ.0, var.identifier));
+
+        if i != function.arguments.len() - 1 {
+            result.push(',');
+        }
+    }
+
+    result.push_str(") ");
+
+    result.push_str(&codegen_block(function.body));
+
+    result
 }
 
-impl CodegenC {
-    pub fn new(type_context: Vec<Type>) -> Self {
-        Self { type_context }
-    }
+fn codegen_statement(c_statement: CStatement) -> String {
+    match c_statement {
+        CStatement::Expression(expr) => format!("{};\n", codegen_expr(expr)),
+        CStatement::Return(id) => format!("return {};\n", id),
 
-    pub fn codegen(type_context: Vec<Type>, c_ast: CAst) -> Res<String> {
-        let mut this = Self { type_context };
-        this.codegen_ast(c_ast)
-    }
-
-    fn codegen_function(&mut self, function: CFunction) -> Res<String> {
-        let mut result = format!("{} {}(", function.return_type.0, function.name);
-
-        // TODO: Find a better way
-        for (i, var) in function.arguments.iter().enumerate() {
-            result.push_str(&format!("{} {}", var.typ.0, var.identifier));
-
-            if i != function.arguments.len() - 1 {
-                result.push(',');
+        CStatement::If(condition, then_body, else_body) => {
+            if let Some(else_body) = else_body {
+                format!(
+                    "if ({}) {} else {}\n",
+                    codegen_expr(condition),
+                    codegen_block(*then_body),
+                    codegen_block(*else_body)
+                )
+            } else {
+                format!(
+                    "if ({}) {}\n",
+                    codegen_expr(condition),
+                    codegen_block(*then_body)
+                )
             }
         }
+        CStatement::While(condition, body) => format!(
+            "while ({}) {}\n",
+            codegen_expr(condition),
+            codegen_block(*body)
+        ),
+        CStatement::Block(block) => codegen_block(block),
+    }
+}
 
-        result.push_str(") ");
+fn codegen_expr(c_expr: CExpr) -> String {
+    match c_expr {
+        CExpr::CLiteral(lit) => lit,
+        CExpr::CVariable(name) => name,
+        CExpr::Assignment(id, expr) => format!("{} = {}", id, codegen_expr(*expr)),
+    }
+}
 
-        Ok(result)
+fn codegen_block(c_block: CBlock) -> String {
+    let mut result = "{\n".to_string();
+
+    for variable in c_block.variables {
+        result.push_str(&format!("{} {};\n", variable.typ.0, variable.identifier));
     }
 
-    fn codegen_statement(&mut self, c_statement: CStatement) -> Res<String> {
-        match c_statement {
-            CStatement::Expression(expr) => Ok(format!("{};\n", self.codegen_expr(expr)?)),
-            CStatement::Return(id) => Ok(format!("return {};\n", id)),
+    result.push('\n');
 
-            CStatement::If(condition, then_body, else_body) => todo!(),
-            CStatement::While(condtion, body) => todo!(),
-            CStatement::Block(block) => self.codegen_block(block),
-        }
+    for statement in c_block.body {
+        result.push_str(&codegen_statement(statement));
     }
 
-    fn codegen_expr(&mut self, c_expr: CExpr) -> Res<String> {
-        match c_expr {
-            CExpr::CLiteral(lit) => Ok(lit),
-            CExpr::CVariable(name) => Ok(name),
-            CExpr::Assignment(id, expr) => Ok(format!("{} = {}", id, self.codegen_expr(*expr)?)),
-        }
+    result.push_str("}\n");
+    result
+}
+
+fn codegen_ast(c_ast: CAst) -> String {
+    let mut result = "".to_string();
+    for import in c_ast.imports {
+        result.push_str(&format!("#include <{}>\n", import));
     }
 
-    fn codegen_block(&mut self, c_block: CBlock) -> Res<String> {
-        let mut result = "{\n".to_string();
+    result.push('\n');
 
-        for variable in c_block.variables {
-            result.push_str(&format!("{} {};\n", variable.typ.0, variable.identifier));
-        }
+    // TODO: Handle global declarations
 
+    for function in c_ast.functions {
+        result.push_str(&codegen_function(function));
         result.push('\n');
-
-        for statement in c_block.body {
-            result.push_str(&self.codegen_statement(statement)?);
-        }
-
-        result.push_str("}\n");
-        Ok(result)
     }
 
-    fn codegen_ast(&mut self, c_ast: CAst) -> Res<String> {
-        let mut result = "".to_string();
-        for import in c_ast.imports {
-            result.push_str(&format!("#include <{}>\n", import));
-        }
-
-        result.push('\n');
-
-        // TODO: Handle global declarations
-
-        for function in c_ast.functions {
-            result.push_str(&self.codegen_function(function)?);
-            result.push('\n');
-        }
-
-        Ok(result)
-    }
+    result
 }
 
 pub fn codegen_c(ast: CheckedAst) -> Res<String> {
     let coded_ast = Codifier::codify(&ast)?;
-    CodegenC::codegen(ast.type_context, coded_ast)
+    Ok(codegen_ast(coded_ast))
 }

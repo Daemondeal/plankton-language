@@ -1,5 +1,10 @@
 proc main() -> int {
-    let x = 12
+    let x = true
 
-    return x
+    if x {
+        return 15
+    } else {
+        return 14
+    }
+
 }

@@ -1,5 +1,5 @@
 use crate::{
-    ast::{ExprKind, LiteralKind, Operator},
+    ast::{LiteralKind, Operator},
     Span,
 };
 

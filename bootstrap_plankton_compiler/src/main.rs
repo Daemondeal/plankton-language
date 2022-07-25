@@ -2,7 +2,7 @@ use std::fs;
 
 use bootstrap_plankton_compiler::{
     compiler::{Compiler, CompilerArgs, CompilerTarget, Source},
-    PlanktonError, Span,
+    PlanktonError, Res, Span,
 };
 use log::{error, info, LevelFilter};
 use simplelog::{ColorChoice, Config, TermLogger, TerminalMode};
@@ -43,7 +43,7 @@ fn parse_args() -> Result<Args, lexopt::Error> {
     Ok(Args {
         input_file_path: input_path.ok_or("Missing input file")?,
         output_file_path: output_path,
-        target: CompilerTarget::C_LANGUAGE, // TODO: Allow changing targets
+        target: CompilerTarget::CLanguage, // TODO: Allow changing targets
         json_errors,
         verbosity,
     })
@@ -72,9 +72,13 @@ fn main() {
                     });
 
                     let res = compiler.compile_target(args.target);
+                    let json = args.json_errors;
                     match res {
-                        Ok(result) => write_result(args, result),
-                        Err(e) => report_all_errors(e, &compiler, args.json_errors),
+                        Ok(result) => match write_result(args, result) {
+                            Ok(()) => {}
+                            Err(e) => report_all_errors(e, &compiler, json),
+                        },
+                        Err(e) => report_all_errors(e, &compiler, json),
                     }
                 }
                 Err(e) => report_io_error(e),
@@ -84,9 +88,16 @@ fn main() {
     }
 }
 
-fn write_result(_args: Args, result: String) {
+fn write_result(args: Args, result: String) -> Res<()> {
     info!(target: "main", "Finished compiling!");
-    println!("{}", result);
+    info!(target: "main", "Writing to {}", args.output_file_path);
+
+    let res = fs::write(args.output_file_path, result);
+
+    match res {
+        Ok(()) => Ok(()),
+        Err(e) => Err(vec![e.into()]),
+    }
 }
 
 fn load_files(source_paths: &[&str]) -> Result<Vec<Source>, std::io::Error> {
